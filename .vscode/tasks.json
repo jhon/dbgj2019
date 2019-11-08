@@ -56,6 +56,22 @@
             "problemMatcher": []
         },
         {
+            "label": "xxCopy Windows Assets",
+            "type": "shell",
+            "command": "trcopy.bat",
+            "args": [
+                "assets",
+                "build/win64/assets",
+                "hero.png"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Build Win64",
             "type": "shell",
             "command": "cl.exe",
@@ -108,7 +124,8 @@
             "dependsOn": [
                 "xxCopy Windows SDL2 DLLs",
                 "xxCopy Windows SDL2_image DLLs",
-                "xxCopy Windows SDL2_ttf DLLs"
+                "xxCopy Windows SDL2_ttf DLLs",
+                "xxCopy Windows Assets"
             ]
         },
         {
@@ -125,8 +142,11 @@
             "type": "shell",
             "command": "emcc",
             "args": [
+                "--preload-file",
+                "assets",
                 "src/main.cpp",
                 "-O3",
+                "-std=c++17",
                 "-s",
                 "WASM=1",
                 "-s",

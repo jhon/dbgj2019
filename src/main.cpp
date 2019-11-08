@@ -30,31 +30,45 @@ class PlayerState
 {
 public:
     PlayerState(SDLState * in_sdl)
-    : sdl(in_sdl)
+    : sdl(in_sdl),
+    image(nullptr),
+    texture(nullptr)
     {
+        image = IMG_Load("assets/hero.png");
+        texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
     }
     ~PlayerState()
     {
-
+        SDL_DestroyTexture(texture);
+        SDL_FreeSurface(image);
     }
     void render()
     {
-        SDL_Rect r_scr;
-        r_scr.x = x;
-        r_scr.y = y;
-        r_scr.w = width;
-        r_scr.h = height;
+        SDL_Rect src;
+        src.x = 16+((SDL_GetTicks()/250)%4)*16;
+        src.y = 0;
+        src.w = 16;
+        src.h = 16;
+
+        SDL_Rect dst;
+        dst.x = x;
+        dst.y = y;
+        dst.w = width;
+        dst.h = height;
         
-        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-        SDL_RenderDrawRect(sdl->renderer, &r_scr);
+        SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
+        //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        //SDL_RenderDrawRect(sdl->renderer, &dst);
     }
 
     int32_t x = 0;
     int32_t y = 0;
-    int32_t width = 20;
-    int32_t height = 20;
+    int32_t width = 32;
+    int32_t height = 32;
 private:
     SDLState * sdl = nullptr;
+    SDL_Surface * image;
+    SDL_Texture * texture;
 };
 
 class GameState
@@ -108,9 +122,9 @@ int main_tick() {
             {
             case SDLK_UP:
             {
-                if (s_state->player->y>=20)
+                if (s_state->player->y >= 32)
                 {
-                    s_state->player->y-=20;
+                    s_state->player->y -= 32;
                 }
                 break;
             }
@@ -118,15 +132,15 @@ int main_tick() {
             {
                 if (s_state->player->y+s_state->player->height<GameConstants::ScreenHeight)
                 {
-                    s_state->player->y += 20;
+                    s_state->player->y += 32;
                 }
                 break;
             }
             case SDLK_LEFT:
             {
-                if (s_state->player->x>=20)
+                if (s_state->player->x >= 32)
                 {
-                    s_state->player->x-=20;
+                    s_state->player->x -= 32;
                 }
                 break;
             }
@@ -134,7 +148,7 @@ int main_tick() {
             {
                 if (s_state->player->x+s_state->player->width<GameConstants::ScreenWidth)
                 {
-                    s_state->player->x += 20;
+                    s_state->player->x += 32;
                 }
                 break;
             }
