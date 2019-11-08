@@ -71,6 +71,39 @@ private:
     SDL_Texture * texture;
 };
 
+class GameScene
+{
+public:
+    virtual ~GameScene() {};
+    virtual void render() = 0;
+    virtual GameScene * advance() = 0;
+};
+
+class DevScene : public GameScene
+{
+public:
+    DevScene(SDLState * in_sdl, PlayerState * in_player)
+    : sdl(in_sdl), player(in_player)
+    {
+        
+    }
+    ~DevScene()
+    {
+        
+    }
+    virtual void render()
+    {
+        player->render();
+    }
+    virtual GameScene * advance()
+    {
+        return nullptr;
+    }
+private:
+    SDLState * sdl;
+    PlayerState * player;
+};
+
 class GameState
 {
 public:
@@ -78,10 +111,16 @@ public:
     : sdl(in_sdl)
     {
         player = new PlayerState(sdl);
+        scene = new DevScene(sdl,player);
     }
     ~GameState()
     {
         delete player;
+        if(scene)
+        {
+            delete scene;
+            scene = nullptr;
+        }
     }
 
     void render()
@@ -89,12 +128,22 @@ public:
         SDL_SetRenderDrawColor( sdl->renderer, 0x00, 0x00, 0x00, 0xFF );
         SDL_RenderClear(sdl->renderer);
 
-        player->render();
+        scene->render();
 
         SDL_RenderPresent(sdl->renderer);
+
+        GameScene * newScene = scene->advance();
+        if(nullptr != newScene)
+        {
+            GameScene * oldScene = scene;
+            newScene = scene;
+            delete scene;
+        }
     }
-    PlayerState * player;
-    SDLState * sdl;
+    PlayerState * player = nullptr;
+    SDLState * sdl = nullptr;
+private:
+    GameScene * scene = nullptr;
 };
 
 GameState * s_state;
