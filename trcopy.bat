@@ -1,0 +1,2 @@
+robocopy %* /NJH /NP
+IF %ERRORLEVEL% LEQ 1 EXIT /B 0

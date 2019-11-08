@@ -1,0 +1,144 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "xxCopy Windows SDL2 DLLs",
+            "type": "shell",
+            "command": "trcopy.bat",
+            "args": [
+                "extern/SDL2/lib64/",
+                "build/win64/",
+                "SDL2.dll"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "xxCopy Windows SDL2_ttf DLLs",
+            "type": "shell",
+            "command": "trcopy.bat",
+            "args": [
+                "extern/SDL2_ttf/lib64",
+                "build/win64",
+                "libfreetype-6.dll",
+                "SDL2_ttf.dll",
+                "zlib1.dll"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "xxCopy Windows SDL2_image DLLs",
+            "type": "shell",
+            "command": "trcopy.bat",
+            "args": [
+                "extern/SDL2_image/lib64",
+                "build/win64",
+                "libjpeg-9.dll",
+                "libpng16-16.dll",
+                "libtiff-5.dll",
+                "libwebp-7.dll",
+                "SDL2_image.dll"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Win64",
+            "type": "shell",
+            "command": "cl.exe",
+            "args": [
+                "/EHsc",
+                "/Zi",
+                "/Od",
+                "/W3",
+                "/WX",
+                "/Iextern/SDL2/include",
+                "/Iextern/SDL2/include/SDL2",
+                "/Iextern/SDL2_ttf/include",
+                "/Iextern/SDL2_image/include",
+                "/Fo.\\build\\win64\\",
+                "/Fa.\\build\\win64\\",
+                "/Fd.\\build\\win64\\dbgj2019.pdb",
+                "/Fe.\\build\\win64\\dbgj2019.exe",
+                "src/*.cpp",
+                "/link",
+                "/ENTRY:WinMain",
+                "/MACHINE:X64",
+                "/DEBUG:FULL",
+                "/LIBPATH:extern/SDL2/lib64",
+                "/LIBPATH:extern/SDL2_image/lib64",
+                "kernel32.lib",
+                "user32.lib",
+                "gdi32.lib",
+                "winspool.lib",
+                "comdlg32.lib",
+                "advapi32.lib",
+                "shell32.lib",
+                "ole32.lib",
+                "oleaut32.lib",
+                "uuid.lib",
+                "odbc32.lib",
+                "odbccp32.lib",
+                "SDL2.lib",
+                "SDL2main.lib",
+                "SDL2_image.lib"
+            ],
+            "group": "build",
+            "presentation": {},
+            "problemMatcher": "$msCompile",
+            "dependsOn": [
+                "xxCopy Windows SDL2 DLLs",
+                "xxCopy Windows SDL2_image DLLs",
+                "xxCopy Windows SDL2_ttf DLLs"
+            ]
+        },
+        {
+            "label": "xxCreate WASM Dir",
+            "type": "shell",
+            "command": "trmkdir.bat",
+            "args": [
+                "build\\html"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Build WASM",
+            "type": "shell",
+            "command": "emcc",
+            "args": [
+                "src/main.cpp",
+                "-O3",
+                "-s",
+                "WASM=1",
+                "-s",
+                "USE_SDL=2",
+                "-s",
+                "USE_SDL_IMAGE=2",
+                "-s",
+                "SDL2_IMAGE_FORMATS=[\"png\"]",
+                "-s",
+                "USE_SDL_TTF=2",
+                "-o",
+                "build/html/index.html",
+                "-s",
+                "EXTRA_EXPORTED_RUNTIME_METHODS=[\"ccall\",\"cwrap\"]"
+            ],
+            "group": "build",
+            "presentation": {},
+            "dependsOn": "xxCreate WASM Dir"
+        }
+    ]
+}
