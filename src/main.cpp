@@ -25,15 +25,18 @@ typedef struct SSDLState
     SDL_Renderer *renderer = nullptr;
     bool quit = false;
 } SDLState;
-static SDLState s_sdl;
 
-typedef struct SPlayerState
+class PlayerState
 {
-    int32_t x = 0;
-    int32_t y = 0;
-    int32_t width = 20;
-    int32_t height = 20;
+public:
+    PlayerState(SDLState * in_sdl)
+    : sdl(in_sdl)
+    {
+    }
+    ~PlayerState()
+    {
 
+    }
     void render()
     {
         SDL_Rect r_scr;
@@ -42,27 +45,45 @@ typedef struct SPlayerState
         r_scr.w = width;
         r_scr.h = height;
         
-        SDL_SetRenderDrawColor(s_sdl.renderer, 0xff, 0xff, 0x00, 0x00);
-        SDL_RenderDrawRect(s_sdl.renderer, &r_scr);
+        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        SDL_RenderDrawRect(sdl->renderer, &r_scr);
     }
-} PlayerState;
 
-typedef struct SGameState
+    int32_t x = 0;
+    int32_t y = 0;
+    int32_t width = 20;
+    int32_t height = 20;
+private:
+    SDLState * sdl = nullptr;
+};
+
+class GameState
 {
-    PlayerState player;
+public:
+    GameState(SDLState * in_sdl)
+    : sdl(in_sdl)
+    {
+        player = new PlayerState(sdl);
+    }
+    ~GameState()
+    {
+        delete player;
+    }
 
     void render()
     {
-        SDL_SetRenderDrawColor( s_sdl.renderer, 0x00, 0x00, 0x00, 0xFF );
-        SDL_RenderClear(s_sdl.renderer);
+        SDL_SetRenderDrawColor( sdl->renderer, 0x00, 0x00, 0x00, 0xFF );
+        SDL_RenderClear(sdl->renderer);
 
-        player.render();
+        player->render();
 
-        SDL_RenderPresent(s_sdl.renderer);
+        SDL_RenderPresent(sdl->renderer);
     }
-} GameState;
+    PlayerState * player;
+    SDLState * sdl;
+};
 
-GameState s_state;
+GameState * s_state;
 
 #if __EMSCRIPTEN__
 void main_tick() {
@@ -78,7 +99,7 @@ int main_tick() {
         {
         case SDL_QUIT:
         {
-            s_sdl.quit = true;
+            s_state->sdl->quit = true;
             break;
         }
         case SDL_KEYDOWN:
@@ -87,33 +108,33 @@ int main_tick() {
             {
             case SDLK_UP:
             {
-                if (s_state.player.y>=20)
+                if (s_state->player->y>=20)
                 {
-                    s_state.player.y-=20;
+                    s_state->player->y-=20;
                 }
                 break;
             }
             case SDLK_DOWN:
             {
-                if (s_state.player.y+s_state.player.height<GameConstants::ScreenHeight)
+                if (s_state->player->y+s_state->player->height<GameConstants::ScreenHeight)
                 {
-                    s_state.player.y += 20;
+                    s_state->player->y += 20;
                 }
                 break;
             }
             case SDLK_LEFT:
             {
-                if (s_state.player.x>=20)
+                if (s_state->player->x>=20)
                 {
-                    s_state.player.x-=20;
+                    s_state->player->x-=20;
                 }
                 break;
             }
             case SDLK_RIGHT:
             {
-                if (s_state.player.x+s_state.player.width<GameConstants::ScreenWidth)
+                if (s_state->player->x+s_state->player->width<GameConstants::ScreenWidth)
                 {
-                    s_state.player.x += 20;
+                    s_state->player->x += 20;
                 }
                 break;
             }
@@ -124,8 +145,8 @@ int main_tick() {
 
     }
 
-    s_state.render();
-    SDL_UpdateWindowSurface(s_sdl.window);
+    s_state->render();
+    SDL_UpdateWindowSurface(s_state->sdl->window);
 
 #if !__EMSCRIPTEN__
     return 0;
@@ -138,7 +159,7 @@ void main_loop()
 #if __EMSCRIPTEN__
     emscripten_set_main_loop(main_tick, -1, 1);
 #else
-    while (!s_sdl.quit)
+    while (!s_state->sdl->quit)
     {
         main_tick();
     }
@@ -147,25 +168,31 @@ void main_loop()
 
 int main(int argc, char *argv[])
 {
-    s_sdl = SDLState();
-    s_state = GameState();
-
     SDL_Init(SDL_INIT_VIDEO);
     IMG_Init(IMG_INIT_PNG);
 
-    s_sdl.window = SDL_CreateWindow(
+    SDLState * sdl = new SDLState;
+
+    sdl->window = SDL_CreateWindow(
         "WEBASM",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         GameConstants::ScreenWidth, GameConstants::ScreenHeight,
         SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
 
-    s_sdl.renderer = SDL_CreateRenderer(s_sdl.window, -1, SDL_RENDERER_ACCELERATED);
-    SDL_SetRenderDrawColor(s_sdl.renderer, 0xff, 0xff, 0xff, 0xff);
+    sdl->renderer = SDL_CreateRenderer(sdl->window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0xff, 0xff);
+
+    s_state = new GameState(sdl);
 
     main_loop();
 
-    SDL_DestroyRenderer(s_sdl.renderer);
-    SDL_DestroyWindow(s_sdl.window);
+    delete s_state;
+    s_state = nullptr;
+
+    SDL_DestroyRenderer(sdl->renderer);
+    SDL_DestroyWindow(sdl->window);
+    delete sdl;
+
     IMG_Quit();
     SDL_Quit();
 
