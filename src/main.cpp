@@ -330,7 +330,7 @@ public:
                     break;
                 }
 
-                int16_t tileValue = tiles[(tiley*GameConstants::MapWidth)+tilex];
+                int16_t tileValue = at(tilex,tiley);
 
                 SDL_Rect src;
                 src.x = 16*(tileValue&0xff);
@@ -359,21 +359,77 @@ public:
             }
         }
     }
+    int16_t at(int32_t x, int32_t y)
+    {
+        return tiles[(y*GameConstants::MapWidth)+x];
+    }
+    bool canMove(int32_t x, int32_t y)
+    {
+        if(x < 0 || y < 0 || x > GameConstants::MapWidth || y > GameConstants::MapHeight)
+        {
+            return false;
+        }
+        int16_t tileValue = at(x,y);
+        int8_t terrain = (int8_t)(tileValue & 0xff);
+        int8_t doodad  = (int8_t)(tileValue >> 8);
+
+        bool validTile = false;
+
+        if((terrain >= Tile::DesertBegin && terrain <= Tile::DesertEnd) ||
+           (terrain >= Tile::RoadDesertBegin && terrain <= Tile::RoadDesertEnd))
+        {
+            validTile = true;
+        }
+
+        switch(doodad)
+        {
+            case Tile::DesertDoodad0: // Cactus
+		    case Tile::DesertDoodad1: // Cactus
+		    case Tile::DesertDoodad2: // Rock
+		    case Tile::DesertDoodad3: // Rock
+                validTile = false;
+                break;
+		    case Tile::DesertDoodad4: // Flower
+		    case Tile::DesertDoodad5: // Flower
+                break;
+		    case Tile::DesertDoodad6: // Cactus
+		    case Tile::DesertDoodad7: // Cactus
+		    case Tile::DesertDoodad8: // Cactus
+                validTile = false;
+                break;
+            default:
+                break;
+        }
+
+        return validTile;
+    }
     void moveUp()
     {
-        playery = MAX(playery-1,0);
+        if(canMove(playerx,playery-1))
+        {
+            playery -= 1;
+        }
     }
     void moveDown()
     {
-        playery = MIN(playery+1,GameConstants::MapHeight);
+        if(canMove(playerx,playery+1))
+        {
+            playery += 1;
+        }
     }
     void moveLeft()
     {
-        playerx = MAX(playerx-1,0);
+        if(canMove(playerx-1,playery))
+        {
+            playerx -= 1;
+        }
     }
     void moveRight()
     {
-        playerx = MIN(playerx+1,GameConstants::MapWidth-1);
+        if(canMove(playerx+1,playery))
+        {
+            playerx += 1;
+        }
     }
 private:
     SDLState * sdl = nullptr;
