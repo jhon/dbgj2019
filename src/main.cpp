@@ -172,11 +172,82 @@ private:
 class MapAsset : Asset
 {
 public:
+    enum Tile
+    {
+        DesertBegin     = 0x00,
+        Desert0         = 0x00,
+		Desert1         = 0x01,
+		Desert2         = 0x02,
+		Desert3         = 0x03,
+		Desert4         = 0x04,
+		Desert5         = 0x05,
+		Desert6         = 0x06,
+        DesertEnd       = 0x06,
+		DesertSkull     = 0x07,
+        DesertDoodadBegin=0x08,
+		DesertDoodad0   = 0x08,
+		DesertDoodad1   = 0x09,
+		DesertDoodad2   = 0x0a,
+		DesertDoodad3   = 0x0b,
+		DesertDoodad4   = 0x0c,
+		DesertDoodad5   = 0x0d,
+		DesertDoodad6   = 0x0e,
+		DesertDoodad7   = 0x0f,
+		DesertDoodad8   = 0x10,
+        DesertDoodadEnd = 0x10,
+        DesertGrassBegin= 0x11,
+		DesertGrassBack = 0x11,
+		DesertGrassFore = 0x12,
+        DesertGrassEnd  = 0x12,
+		DesertStairsDown= 0x13,
+		DesertStairsUp  = 0x14,
+		GrassBack       = 0x15,
+		GrassFore       = 0x16,
+		Hedge0          = 0x17,
+		Hedge1          = 0x18,
+		Hedge2          = 0x19,
+		Hedge3          = 0x1a,
+		Ruins0          = 0x1b,
+		Ruins1          = 0x1c,
+		Ruins2          = 0x1d,
+		Ruins3          = 0x1e,
+		Ruins4          = 0x1f,
+		Ruins5          = 0x20,
+        RoadDesertBegin = 0x21,
+		RoadDesert0     = 0x21,
+		RoadDesert1     = 0x22,
+		RoadDesert2     = 0x23,
+		RoadDesert3     = 0x24,
+		RoadDesert4     = 0x25,
+        RoadDesertEnd   = 0x25,
+    };
     MapAsset(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
-        tiles = new uint8_t[GameConstants::MapHeight*GameConstants::MapWidth];
-        memset(tiles,0,GameConstants::MapHeight*GameConstants::MapWidth);
+        std::mt19937_64 r(time(0));
+        std::uniform_real_distribution<float> u(0,1.f);
+        std::uniform_int_distribution<int32_t> terraingen(Tile::DesertBegin,Tile::DesertEnd);
+        std::uniform_int_distribution<int32_t> doodadgen(Tile::DesertDoodadBegin,Tile::DesertDoodadEnd);
+        std::uniform_int_distribution<int32_t> grassgen(Tile::DesertGrassBegin,Tile::DesertGrassEnd);
+        tiles = new uint16_t[GameConstants::MapHeight*GameConstants::MapWidth];
+        for(int32_t i=0;i<(GameConstants::MapHeight*GameConstants::MapWidth);++i)
+        {
+            float doodadroll = u(r);
+            uint16_t doodad = 0;
+            if(doodadroll < 0.1) // 10% chance of doodad
+            {
+                doodad = doodadgen(r);
+            }
+            else if(doodadroll < 0.6) // 50% of grass
+            {
+                doodad = grassgen(r);
+            }
+            // Bottom half is terrain, top half is doodads
+            tiles[i] = (doodad<<8) | (0xff & terraingen(r));
+        }
+        
+        image = IMG_Load("assets/terrain.png");
+        texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
 
         playerx = 0;
         playery = 50;
@@ -188,31 +259,39 @@ public:
     ~MapAsset()
     {
         delete tiles;
+        SDL_DestroyTexture(texture);
+        SDL_FreeSurface(image);
     }
     void createPath()
     {
         std::mt19937_64 r(time(0));
         std::uniform_real_distribution<float> u(0.f,1.f);
+        std::uniform_int_distribution<int32_t> uroad(Tile::RoadDesertBegin,Tile::RoadDesertEnd);
 
         int32_t y = playery;
         float ybias = (u(r)*1.f)-0.5f;
         for(int32_t x=playerx;x<GameConstants::MapWidth-1;++x)
         {
-            tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+            
                    //  Random Component + Center Bias
             ybias += ((u(r)-0.5f)/2.f) + (((y-50)*-1.f)/500.f);
             if(ybias>0.33)
             {
                 ybias = MIN(ybias,1.f);
                 y = MIN(y+1,GameConstants::MapHeight);
-                tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);
             }
             else if (ybias<-0.33)
             {
                 ybias = MAX(ybias,-5.f);
                 y = MAX(y-1,0);
-                tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);
             }
+            else
+            {
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);    
+            }
+            
 
         }
     }
@@ -250,17 +329,33 @@ public:
                 {
                     break;
                 }
-                if(tiles[(tiley*GameConstants::MapWidth)+tilex]==1)
+
+                int16_t tileValue = tiles[(tiley*GameConstants::MapWidth)+tilex];
+
+                SDL_Rect src;
+                src.x = 16*(tileValue&0xff);
+                src.y = 0;
+                src.w = 16;
+                src.h = 16;
+        
+                SDL_Rect dst;
+                dst.x = TopLeftX+(x*GameConstants::GridWidth);
+                dst.y = TopLeftY+(y*GameConstants::GridHeight);
+                dst.w = GameConstants::GridWidth;
+                dst.h = GameConstants::GridHeight;
+                SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
+
+                // Render Doodad
+                if((tileValue&0xff00) != 0)
                 {
-                    SDL_Rect dst;
-                    dst.x = TopLeftX+(x*GameConstants::GridWidth);
-                    dst.y = TopLeftY+(y*GameConstants::GridHeight);
-                    dst.w = GameConstants::GridWidth;
-                    dst.h = GameConstants::GridHeight;
-                    //printf("%i,%i->%i,%i\n",x,y,dst.x,dst.y);
-                    SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-                    SDL_RenderDrawRect(sdl->renderer, &dst);
+                    tileValue >>= 8;
+                    src.x = 16*(tileValue&0xff);
+                    SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
                 }
+
+                //printf("%i,%i->%i,%i\n",x,y,dst.x,dst.y);
+                //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+                //SDL_RenderDrawRect(sdl->renderer, &dst);
             }
         }
     }
@@ -278,12 +373,14 @@ public:
     }
     void moveRight()
     {
-        playerx = MIN(playerx+1,GameConstants::MapWidth);
+        playerx = MIN(playerx+1,GameConstants::MapWidth-1);
     }
 private:
     SDLState * sdl = nullptr;
     PlayerState * player = nullptr;
-    uint8_t * tiles;
+    SDL_Surface * image = nullptr;
+    SDL_Texture * texture = nullptr;
+    uint16_t * tiles;
     int32_t playerx;
     int32_t playery;
 };
