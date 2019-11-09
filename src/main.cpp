@@ -40,6 +40,25 @@ typedef struct SGameContent
     inline static const char * Title = "The Desert Styx";
     inline static const char * Subtitle = "press any key";
     inline static const char * ContinueExposition = "press any key";
+    inline static const char * IntroExposition = "For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
+\n\
+As the world grew hotter, the river dried up. The Ferryman traded his transport for something more fitting of the desert: A Bus.\n\
+\n\
+Gather the Souls from the area surrounding The Meadows ((Las Vegas)) and bring them to your bus. Take the bus to The Base of the Black Hills ((Tucson)).\n\
+\n\
+Good Luck, Busdriver.";
+    inline static const char * Controls = "Arrow keys control the character.\n\
+\n\
+Enemies move the turn after you.\n\
+\n\
+If you move into an enemy's square, the enemy dies.\n\
+If an enemy moves into your square, you die.\n\
+\n\
+\n\
+CAVEATS:\n\
+- Game is very in progress\n\
+- The first level does not end.\n\
+- If you die, you need to restart the game";
     inline static const char * LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
 Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
@@ -677,8 +696,11 @@ public:
             }
         }
 
-        banner->setAlpha(alpha/3);
-        banner->render();
+        if(nullptr != banner)
+        {
+            banner->setAlpha(alpha/3);
+            banner->render();
+        }
 
         SDL_SetTextureAlphaMod(text_texture, alpha);
         SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
@@ -828,7 +850,8 @@ public:
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
         scene_queue.push(new TitleCardScene(sdl));
-        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::AlphaFlight));
+        scene_queue.push(new TextCardScene(sdl,GameContent::IntroExposition,DBShift::AlphaFlight));
+        scene_queue.push(new TextCardScene(sdl,GameContent::Controls,DBShift::NONE));
         scene_queue.push(new DevScene(sdl,player));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
