@@ -20,13 +20,32 @@ typedef struct SGameConstants
     static const int32_t ScreenHeight = 720;
     static const int32_t GridWidth = 32;
     static const int32_t GridHeight = 32;
+    static const int32_t Margin = 32;
 } GameConstants;
+
+typedef struct SGameContent
+{
+    inline static const char * IntroText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\
+\n\
+Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. \
+Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. \
+Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula. \
+Donec lobortis risus a elit. Etiam tempor. Ut ullamcorper, ligula eu tempor congue, eros est euismod turpis, id tincidunt sapien risus a quam. \
+Maecenas fermentum consequat mi. Donec fermentum. Pellentesque malesuada nulla a mi. Duis sapien sem, aliquet nec, commodo eget, consequat quis, neque. \
+Aliquam faucibus, elit ut dictum aliquet, felis nisl adipiscing sapien, sed malesuada diam lacus eget erat. Cras mollis scelerisque nunc. Nullam arcu. \
+Aliquam consequat. Curabitur augue lorem, dapibus quis, laoreet et, pretium ac, nisi. Aenean magna nisl, mollis quis, molestie eu, feugiat in, orci. \
+In hac habitasse platea dictumst.";
+} GameContent;
 
 typedef struct SSDLState
 {
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
-    TTF_Font *font = nullptr;
+    TTF_Font *title_font = nullptr;
+    TTF_Font *exposition_font = nullptr;
     bool quit = false;
 } SDLState;
 
@@ -268,17 +287,19 @@ public:
 
         text_source.x = 0;
         text_source.y = 0;
-        TTF_SizeText(sdl->font,in_title,&text_source.w,&text_source.h);
+        TTF_SizeText(sdl->title_font,in_title,&text_source.w,&text_source.h);
         text_dest.x = (GameConstants::ScreenWidth - text_source.w)/2;
         text_dest.y = GameConstants::ScreenHeight - text_source.h - 32;
         text_dest.w = text_source.w;
         text_dest.h = text_source.h;
-        text_surface = TTF_RenderText_Solid(sdl->font,in_title,SDL_Color{0xff,0xff,0xff,0xff});
+        text_surface = TTF_RenderText_Blended(sdl->title_font,in_title,SDL_Color{0xff,0xff,0xff,0xff});
         text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
     }
     virtual ~BannerScene()
     {
         delete banner;
+        SDL_DestroyTexture(text_texture);
+        SDL_FreeSurface(text_surface);
     }
     virtual void render()
     {
@@ -334,6 +355,76 @@ private:
     bool completed;
 };
 
+class TextCardScene : public GameScene
+{
+public:
+    TextCardScene(SDLState * in_sdl, const char * in_text)
+    : sdl(in_sdl), firstTick(0), completed(false)
+    {
+        text_source.x = 0;
+        text_source.y = 0;
+        text_dest.x = GameConstants::Margin;
+        text_dest.y = GameConstants::Margin;
+        text_surface = TTF_RenderText_Blended_Wrapped(sdl->exposition_font,in_text,SDL_Color{0xff,0xff,0xff,0xff},GameConstants::ScreenWidth-(GameConstants::Margin*2));
+        text_source.w = text_dest.w = text_surface->w;
+        text_source.h = text_dest.h = text_surface->h;
+        text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
+    }
+    virtual ~TextCardScene()
+    {
+        SDL_DestroyTexture(text_texture);
+        SDL_FreeSurface(text_surface);
+    }
+    virtual void render()
+    {
+        if(firstTick==0)
+        {
+            firstTick = SDL_GetTicks();
+            return;
+        }
+        uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
+
+        // (0-1000]    Ramp up
+        // (1000-2000] Full up
+        // (2000,3000] Ramp down
+        // (3000,] completed = true
+        uint32_t alpha = 0;
+        if(deltaTicks<1000)
+        {
+            alpha = (uint32_t)((deltaTicks/1000.f)*255);
+        }
+        else if(deltaTicks<2000)
+        {
+            alpha = 255;
+        }
+        else if(deltaTicks<3000)
+        {
+            alpha = (uint32_t)(((1000-(deltaTicks-2000))/1000.f)*255);
+        }
+        else
+        {
+            alpha = 0;
+            completed = true;
+            return;
+        }
+
+        SDL_SetTextureAlphaMod(text_texture, alpha);
+        SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
+    }
+    virtual bool advance()
+    {
+        return completed;
+    }
+private:
+    SDLState * sdl;
+    SDL_Surface * text_surface;
+    SDL_Texture * text_texture;
+    SDL_Rect text_source;
+    SDL_Rect text_dest;
+    uint32_t firstTick;
+    bool completed;
+};
+
 class GameState
 {
 public:
@@ -342,6 +433,7 @@ public:
     {
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
+        scene_queue.push(new TextCardScene(sdl,GameContent::IntroText));
         scene_queue.push(new BannerScene(sdl,DBShift::DawnGuard,"Dawn Guard"));
         scene_queue.push(new BannerScene(sdl,DBShift::AlphaFlight,"Alpha Flight"));
         scene_queue.push(new BannerScene(sdl,DBShift::NightWatch,"Night Watch"));
@@ -482,7 +574,8 @@ int main(int argc, char *argv[])
     sdl->renderer = SDL_CreateRenderer(sdl->window, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0xff, 0xff);
 
-    sdl->font = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",64);
+    sdl->title_font      = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",64);
+    sdl->exposition_font = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",32);
 
     s_state = new GameState(sdl);
 
@@ -491,7 +584,8 @@ int main(int argc, char *argv[])
     delete s_state;
     s_state = nullptr;
 
-    TTF_CloseFont(sdl->font);
+    TTF_CloseFont(sdl->title_font);
+    TTF_CloseFont(sdl->exposition_font);
 
     SDL_DestroyRenderer(sdl->renderer);
     SDL_DestroyWindow(sdl->window);
