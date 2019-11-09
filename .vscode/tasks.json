@@ -62,7 +62,8 @@
             "args": [
                 "assets",
                 "build/win64/assets",
-                "hero.png"
+                "hero.png",
+                "dbgj2019splash.png"
             ],
             "group": "build",
             "presentation": {
