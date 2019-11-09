@@ -40,7 +40,9 @@ typedef struct SGameContent
     inline static const char * Title = "The Desert Styx";
     inline static const char * Subtitle = "press any key";
     inline static const char * ContinueExposition = "press any key";
-    inline static const char * IntroExposition = "For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
+    inline static const char * IntroExposition = "Alpha Flight\n\
+\n\
+For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
 \n\
 As the world grew hotter, the river dried up. The Ferryman traded his transport for something more fitting of the desert: A Bus.\n\
 \n\
