@@ -63,7 +63,12 @@
                 "assets",
                 "build/win64/assets",
                 "hero.png",
-                "dbgj2019splash.png"
+                "dbgj2019splash.png",
+                "banner_dawnguard.png",
+                "banner_alphaflight.png",
+                "banner_nightwatch.png",
+                "banner_zetashift.png",
+                "kenney_pixel-webfont.ttf"
             ],
             "group": "build",
             "presentation": {
@@ -101,6 +106,7 @@
                 "/DEBUG:FULL",
                 "/LIBPATH:extern/SDL2/lib64",
                 "/LIBPATH:extern/SDL2_image/lib64",
+                "/LIBPATH:extern/SDL2_ttf/lib64",
                 "ucrtd.lib",
                 "vcruntimed.lib",
                 "kernel32.lib",
@@ -117,7 +123,8 @@
                 "odbccp32.lib",
                 "SDL2.lib",
                 "SDL2main.lib",
-                "SDL2_image.lib"
+                "SDL2_image.lib",
+                "SDL2_ttf.lib"
             ],
             "group": "build",
             "presentation": {},
@@ -165,7 +172,8 @@
             ],
             "group": "build",
             "presentation": {},
-            "dependsOn": "xxCreate WASM Dir"
+            "dependsOn": "xxCreate WASM Dir",
+            "problemMatcher": []
         }
     ]
 }

@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cinttypes>
+#include <queue>
 
 #if __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -25,6 +26,7 @@ typedef struct SSDLState
 {
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
+    TTF_Font *font = nullptr;
     bool quit = false;
 } SDLState;
 
@@ -137,7 +139,7 @@ class GameScene
 public:
     virtual ~GameScene() {};
     virtual void render() = 0;
-    virtual GameScene * advance() = 0;
+    virtual bool advance() = 0;
 };
 
 class DevScene : public GameScene
@@ -156,9 +158,9 @@ public:
     {
         player->render();
     }
-    virtual GameScene * advance()
+    virtual bool advance()
     {
-        return nullptr;
+        return false;
     }
 private:
     SDLState * sdl;
@@ -168,8 +170,8 @@ private:
 class SplashScene : public GameScene
 {
 public:
-    SplashScene(SDLState * in_sdl, PlayerState * in_player)
-    : sdl(in_sdl), player(in_player), firstTick(0), completed(false)
+    SplashScene(SDLState * in_sdl)
+    : sdl(in_sdl), firstTick(0), completed(false)
     {
         logo = new CardAsset(sdl, "assets/dbgj2019splash.png");
         logo->setX((GameConstants::ScreenWidth  - logo->getWidth())/2);
@@ -215,18 +217,119 @@ public:
         logo->setAlpha(alpha);
         logo->render();
     }
-    virtual GameScene * advance()
+    virtual bool advance()
     {
-        if(completed)
-        {
-            return new DevScene(sdl,player);
-        }
-        return nullptr;
+        return completed;
     }
 private:
     SDLState * sdl;
-    PlayerState * player;
     CardAsset * logo;
+    uint32_t firstTick;
+    bool completed;
+};
+
+enum class DBShift
+{
+    DawnGuard,
+    AlphaFlight,
+    NightWatch,
+    ZetaShift,
+};
+
+class BannerScene : public GameScene
+{
+public:
+    BannerScene(SDLState * in_sdl, DBShift in_shift, const char * in_title)
+    : sdl(in_sdl), firstTick(0), completed(false)
+    {
+        switch(in_shift)
+        {
+            case DBShift::DawnGuard:
+                banner = new CardAsset(sdl, "assets/banner_dawnguard.png");
+                banner->setX(0);
+                break;
+            case DBShift::AlphaFlight:
+                banner = new CardAsset(sdl, "assets/banner_alphaflight.png");
+                banner->setX((12*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
+                break;
+            case DBShift::NightWatch:
+                banner = new CardAsset(sdl, "assets/banner_nightwatch.png");
+                banner->setX((18*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
+                break;
+            case DBShift::ZetaShift:
+                banner = new CardAsset(sdl, "assets/banner_zetashift.png");
+                banner->setX(GameConstants::ScreenWidth - banner->getWidth());
+                break;
+            default:
+                // This will AV in a second :(
+                break;
+        }
+        banner->setY((GameConstants::ScreenHeight - banner->getHeight())/2);
+
+        text_source.x = 0;
+        text_source.y = 0;
+        TTF_SizeText(sdl->font,in_title,&text_source.w,&text_source.h);
+        text_dest.x = (GameConstants::ScreenWidth - text_source.w)/2;
+        text_dest.y = GameConstants::ScreenHeight - text_source.h - 32;
+        text_dest.w = text_source.w;
+        text_dest.h = text_source.h;
+        text_surface = TTF_RenderText_Solid(sdl->font,in_title,SDL_Color{0xff,0xff,0xff,0xff});
+        text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
+    }
+    virtual ~BannerScene()
+    {
+        delete banner;
+    }
+    virtual void render()
+    {
+        if(firstTick==0)
+        {
+            firstTick = SDL_GetTicks();
+            return;
+        }
+        uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
+
+        // (0-1000]    Ramp up
+        // (1000-2000] Full up
+        // (2000,3000] Ramp down
+        // (3000,] completed = true
+        uint32_t alpha = 0;
+        if(deltaTicks<1000)
+        {
+            alpha = (uint32_t)((deltaTicks/1000.f)*255);
+        }
+        else if(deltaTicks<2000)
+        {
+            alpha = 255;
+        }
+        else if(deltaTicks<3000)
+        {
+            alpha = (uint32_t)(((1000-(deltaTicks-2000))/1000.f)*255);
+        }
+        else
+        {
+            alpha = 0;
+            completed = true;
+            return;
+        }
+        
+        banner->setAlpha(alpha);
+        banner->render();
+
+        SDL_SetTextureAlphaMod(text_texture, alpha);
+        SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
+    }
+    virtual bool advance()
+    {
+        return completed;
+    }
+private:
+    SDLState * sdl;
+    CardAsset * banner;
+    SDL_Surface * text_surface;
+    SDL_Texture * text_texture;
+    SDL_Rect text_source;
+    SDL_Rect text_dest;
     uint32_t firstTick;
     bool completed;
 };
@@ -238,15 +341,20 @@ public:
     : sdl(in_sdl)
     {
         player = new PlayerState(sdl);
-        scene = new SplashScene(sdl,player);
+        scene_queue.push(new SplashScene(sdl));
+        scene_queue.push(new BannerScene(sdl,DBShift::DawnGuard,"Dawn Guard"));
+        scene_queue.push(new BannerScene(sdl,DBShift::AlphaFlight,"Alpha Flight"));
+        scene_queue.push(new BannerScene(sdl,DBShift::NightWatch,"Night Watch"));
+        scene_queue.push(new BannerScene(sdl,DBShift::ZetaShift,"Zeta Shift"));
+        scene_queue.push(new DevScene(sdl,player));
     }
     ~GameState()
     {
         delete player;
-        if(scene)
+        while(!scene_queue.empty())
         {
-            delete scene;
-            scene = nullptr;
+            delete scene_queue.front();
+            scene_queue.pop();
         }
     }
 
@@ -255,25 +363,22 @@ public:
         SDL_SetRenderDrawColor( sdl->renderer, 0x00, 0x00, 0x00, 0xFF );
         SDL_RenderClear(sdl->renderer);
 
-        if(scene)
+        if(!scene_queue.empty())
         {
-            scene->render();
+            scene_queue.front()->render();
+            if(scene_queue.front()->advance())
+            {
+                delete scene_queue.front();
+                scene_queue.pop();
+            }
         }
 
         SDL_RenderPresent(sdl->renderer);
-
-        GameScene * newScene = scene->advance();
-        if(nullptr != newScene)
-        {
-            GameScene * oldScene = scene;
-            scene = newScene;
-            delete oldScene;
-        }
     }
     PlayerState * player = nullptr;
     SDLState * sdl = nullptr;
 private:
-    GameScene * scene = nullptr;
+    std::queue<GameScene *> scene_queue;
 };
 
 GameState * s_state;
@@ -364,6 +469,7 @@ int main(int argc, char *argv[])
 {
     SDL_Init(SDL_INIT_VIDEO);
     IMG_Init(IMG_INIT_PNG);
+    TTF_Init();
 
     SDLState * sdl = new SDLState;
 
@@ -376,6 +482,8 @@ int main(int argc, char *argv[])
     sdl->renderer = SDL_CreateRenderer(sdl->window, -1, SDL_RENDERER_ACCELERATED);
     SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0xff, 0xff);
 
+    sdl->font = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",64);
+
     s_state = new GameState(sdl);
 
     main_loop();
@@ -383,10 +491,13 @@ int main(int argc, char *argv[])
     delete s_state;
     s_state = nullptr;
 
+    TTF_CloseFont(sdl->font);
+
     SDL_DestroyRenderer(sdl->renderer);
     SDL_DestroyWindow(sdl->window);
     delete sdl;
 
+    TTF_Quit();
     IMG_Quit();
     SDL_Quit();
 
