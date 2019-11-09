@@ -58,7 +58,11 @@ If an enemy moves into your square, you die.\n\
 CAVEATS:\n\
 - Game is very in progress\n\
 - The first level does not end.\n\
-- If you die, you need to restart the game";
+- If you die, you need to restart the game\n\
+\n\
+CREDITS:\n\
+Code: Jhon Adams (Tracteur Blinde)\n\
+Pixel Art: Henry Software (henrysoftware.itch.io)";
     inline static const char * LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
 Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
