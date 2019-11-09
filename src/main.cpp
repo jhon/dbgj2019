@@ -299,108 +299,6 @@ private:
     bool completed;
 };
 
-class BannerScene : public GameScene
-{
-public:
-    BannerScene(SDLState * in_sdl, DBShift in_shift, const char * in_title)
-    : sdl(in_sdl), firstTick(0), completed(false), banner(nullptr)
-    {
-        switch(in_shift)
-        {
-            case DBShift::DawnGuard:
-                banner = new CardAsset(sdl, "assets/banner_dawnguard.png");
-                banner->setX(0);
-                break;
-            case DBShift::AlphaFlight:
-                banner = new CardAsset(sdl, "assets/banner_alphaflight.png");
-                banner->setX((12*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
-                break;
-            case DBShift::NightWatch:
-                banner = new CardAsset(sdl, "assets/banner_nightwatch.png");
-                banner->setX((18*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
-                break;
-            case DBShift::ZetaShift:
-                banner = new CardAsset(sdl, "assets/banner_zetashift.png");
-                banner->setX(GameConstants::ScreenWidth - banner->getWidth());
-                break;
-            case DBShift::NONE:
-            default:
-                // This will AV in a second :(
-                break;
-        }
-        banner->setY((GameConstants::ScreenHeight - banner->getHeight())/2);
-
-        text_source.x = 0;
-        text_source.y = 0;
-        TTF_SizeText(sdl->title_font,in_title,&text_source.w,&text_source.h);
-        text_dest.x = (GameConstants::ScreenWidth - text_source.w)/2;
-        text_dest.y = GameConstants::ScreenHeight - text_source.h - 32;
-        text_dest.w = text_source.w;
-        text_dest.h = text_source.h;
-        text_surface = TTF_RenderText_Blended(sdl->title_font,in_title,SDL_Color{0xff,0xff,0xff,0xff});
-        text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
-    }
-    virtual ~BannerScene()
-    {
-        delete banner;
-        SDL_DestroyTexture(text_texture);
-        SDL_FreeSurface(text_surface);
-    }
-    virtual void render()
-    {
-        if(firstTick==0)
-        {
-            firstTick = SDL_GetTicks();
-            return;
-        }
-        uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
-
-        // (0-1000]    Ramp up
-        // (1000-2000] Full up
-        // (2000,3000] Ramp down
-        // (3000,] completed = true
-        uint32_t alpha = 0;
-        if(deltaTicks<1000)
-        {
-            alpha = (uint32_t)((deltaTicks/1000.f)*255);
-        }
-        else if(deltaTicks<2000)
-        {
-            alpha = 255;
-        }
-        else if(deltaTicks<3000)
-        {
-            alpha = (uint32_t)(((1000-(deltaTicks-2000))/1000.f)*255);
-        }
-        else
-        {
-            alpha = 0;
-            completed = true;
-            return;
-        }
-        
-        banner->setAlpha(alpha);
-        banner->render();
-
-        SDL_SetTextureAlphaMod(text_texture, alpha);
-        SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
-    }
-    virtual bool advance()
-    {
-        return completed;
-    }
-    virtual void keydown(SDL_Keycode keycode) {}
-private:
-    SDLState * sdl;
-    CardAsset * banner;
-    SDL_Surface * text_surface;
-    SDL_Texture * text_texture;
-    SDL_Rect text_source;
-    SDL_Rect text_dest;
-    uint32_t firstTick;
-    bool completed;
-};
-
 class TextCardScene : public GameScene
 {
 public:
@@ -654,10 +552,6 @@ public:
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::AlphaFlight));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
-        scene_queue.push(new BannerScene(sdl,DBShift::DawnGuard,"Dawn Guard"));
-        scene_queue.push(new BannerScene(sdl,DBShift::AlphaFlight,"Alpha Flight"));
-        scene_queue.push(new BannerScene(sdl,DBShift::NightWatch,"Night Watch"));
-        scene_queue.push(new BannerScene(sdl,DBShift::ZetaShift,"Zeta Shift"));
         scene_queue.push(new DevScene(sdl,player));
     }
     ~GameState()
