@@ -27,11 +27,12 @@ typedef struct SGameContent
 {
     inline static const char * Title = "The Desert Styx";
     inline static const char * Subtitle = "press any key";
-    inline static const char * IntroText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
+    inline static const char * ContinueExposition = "press any key";
+    inline static const char * LoremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
 Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\
-\n\
+\n\n\
 Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. \
 Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. \
 Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula. \
@@ -41,6 +42,15 @@ Aliquam faucibus, elit ut dictum aliquet, felis nisl adipiscing sapien, sed male
 Aliquam consequat. Curabitur augue lorem, dapibus quis, laoreet et, pretium ac, nisi. Aenean magna nisl, mollis quis, molestie eu, feugiat in, orci. \
 In hac habitasse platea dictumst.";
 } GameContent;
+
+enum class DBShift
+{
+    DawnGuard,
+    AlphaFlight,
+    NightWatch,
+    ZetaShift,
+    NONE
+};
 
 typedef struct SSDLState
 {
@@ -289,19 +299,11 @@ private:
     bool completed;
 };
 
-enum class DBShift
-{
-    DawnGuard,
-    AlphaFlight,
-    NightWatch,
-    ZetaShift,
-};
-
 class BannerScene : public GameScene
 {
 public:
     BannerScene(SDLState * in_sdl, DBShift in_shift, const char * in_title)
-    : sdl(in_sdl), firstTick(0), completed(false)
+    : sdl(in_sdl), firstTick(0), completed(false), banner(nullptr)
     {
         switch(in_shift)
         {
@@ -321,6 +323,7 @@ public:
                 banner = new CardAsset(sdl, "assets/banner_zetashift.png");
                 banner->setX(GameConstants::ScreenWidth - banner->getWidth());
                 break;
+            case DBShift::NONE:
             default:
                 // This will AV in a second :(
                 break;
@@ -401,8 +404,8 @@ private:
 class TextCardScene : public GameScene
 {
 public:
-    TextCardScene(SDLState * in_sdl, const char * in_text)
-    : sdl(in_sdl), firstTick(0), completed(false)
+    TextCardScene(SDLState * in_sdl, const char * in_text, DBShift in_shift = DBShift::NONE)
+    : sdl(in_sdl), firstTick(0), lastTick(0), completed(false), banner(nullptr)
     {
         text_source.x = 0;
         text_source.y = 0;
@@ -412,11 +415,50 @@ public:
         text_source.w = text_dest.w = text_surface->w;
         text_source.h = text_dest.h = text_surface->h;
         text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
+
+        continue_source.x = 0;
+        continue_source.y = 0;
+        TTF_SizeText(sdl->exposition_font,GameContent::ContinueExposition,&continue_source.w,&continue_source.h);
+        continue_dest.x = GameConstants::ScreenWidth - continue_source.w - GameConstants::Margin;
+        continue_dest.y = GameConstants::ScreenHeight - continue_source.h - GameConstants::Margin;
+        continue_dest.w = continue_source.w;
+        continue_dest.h = continue_source.h;
+        continue_surface = TTF_RenderText_Blended(sdl->exposition_font,GameContent::ContinueExposition,SDL_Color{0xff,0xff,0xff,0xff});
+        continue_texture = SDL_CreateTextureFromSurface(sdl->renderer, continue_surface);
+
+        switch(in_shift)
+        {
+            case DBShift::DawnGuard:
+                banner = new CardAsset(sdl, "assets/banner_dawnguard.png");
+                banner->setX(0);
+                break;
+            case DBShift::AlphaFlight:
+                banner = new CardAsset(sdl, "assets/banner_alphaflight.png");
+                banner->setX((12*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
+                break;
+            case DBShift::NightWatch:
+                banner = new CardAsset(sdl, "assets/banner_nightwatch.png");
+                banner->setX((18*GameConstants::ScreenWidth/30) - (banner->getWidth()/2));
+                break;
+            case DBShift::ZetaShift:
+                banner = new CardAsset(sdl, "assets/banner_zetashift.png");
+                banner->setX(GameConstants::ScreenWidth - banner->getWidth());
+                break;
+            case DBShift::NONE:
+            default:
+                break;
+        }
+        if(nullptr!=banner)
+        {
+            banner->setY((GameConstants::ScreenHeight - banner->getHeight())/2);
+        }
     }
     virtual ~TextCardScene()
     {
         SDL_DestroyTexture(text_texture);
         SDL_FreeSurface(text_surface);
+        SDL_DestroyTexture(continue_texture);
+        SDL_FreeSurface(continue_surface);
     }
     virtual void render()
     {
@@ -425,49 +467,74 @@ public:
             firstTick = SDL_GetTicks();
             return;
         }
-        uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
 
-        // (0-1000]    Ramp up
-        // (1000-2000] Full up
-        // (2000,3000] Ramp down
-        // (3000,] completed = true
         uint32_t alpha = 0;
-        if(deltaTicks<1000)
+        if(lastTick == 0)
         {
-            alpha = (uint32_t)((deltaTicks/1000.f)*255);
-        }
-        else if(deltaTicks<2000)
-        {
-            alpha = 255;
-        }
-        else if(deltaTicks<3000)
-        {
-            alpha = (uint32_t)(((1000-(deltaTicks-2000))/1000.f)*255);
+            // (0-1000]    Ramp up
+            // (1000,] Full on
+            uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)((deltaTicks/1000.f)*255);
+            }
+            else
+            {
+                alpha = 255;
+            }
         }
         else
         {
-            alpha = 0;
-            completed = true;
-            return;
+            // (0-1000]    Ramp down
+            // (1000,]      We out
+            uint32_t deltaTicks = SDL_GetTicks() - lastTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)(((1000-deltaTicks)/1000.f)*255);
+            }
+            else
+            {
+                completed = true;
+                return;
+            }
         }
+
+        banner->setAlpha(alpha/3);
+        banner->render();
 
         SDL_SetTextureAlphaMod(text_texture, alpha);
         SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
+
+        SDL_SetTextureAlphaMod(continue_texture, alpha);
+        SDL_RenderCopy(sdl->renderer, continue_texture, &continue_source, &continue_dest);
     }
     virtual bool advance()
     {
         return completed;
     }
-    virtual void keydown(SDL_Keycode keycode) {}
+    virtual void keydown(SDL_Keycode keycode)
+    {
+        if(lastTick == 0)
+        {
+            lastTick = SDL_GetTicks();
+        }
+    }
 private:
     SDLState * sdl;
+    CardAsset * banner;
     SDL_Surface * text_surface;
     SDL_Texture * text_texture;
     SDL_Rect text_source;
     SDL_Rect text_dest;
+    SDL_Surface * continue_surface;
+    SDL_Texture * continue_texture;
+    SDL_Rect continue_source;
+    SDL_Rect continue_dest;
     uint32_t firstTick;
+    uint32_t lastTick;
     bool completed;
 };
+
 class TitleCardScene : public GameScene
 {
 public:
@@ -583,7 +650,10 @@ public:
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
         scene_queue.push(new TitleCardScene(sdl));
-        scene_queue.push(new TextCardScene(sdl,GameContent::IntroText));
+        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
+        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::AlphaFlight));
+        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
+        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
         scene_queue.push(new BannerScene(sdl,DBShift::DawnGuard,"Dawn Guard"));
         scene_queue.push(new BannerScene(sdl,DBShift::AlphaFlight,"Alpha Flight"));
         scene_queue.push(new BannerScene(sdl,DBShift::NightWatch,"Night Watch"));
