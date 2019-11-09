@@ -1,7 +1,9 @@
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <cinttypes>
 #include <queue>
+#include <random>
 
 #if __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -21,6 +23,8 @@ typedef struct SGameConstants
     static const int32_t GridWidth = 32;
     static const int32_t GridHeight = 32;
     static const int32_t Margin = 32;
+    static const int32_t MapWidth = 128;
+    static const int32_t MapHeight = 128;
 } GameConstants;
 
 typedef struct SGameContent
@@ -156,13 +160,86 @@ public:
         dst.h = _height;
         
         SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
-        //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-        //SDL_RenderDrawRect(sdl->renderer, &dst);
+        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        SDL_RenderDrawRect(sdl->renderer, &dst);
     }
 private:
     SDLState * sdl = nullptr;
-    SDL_Surface * image;
-    SDL_Texture * texture;
+    SDL_Surface * image = nullptr;
+    SDL_Texture * texture = nullptr;
+};
+
+class MapAsset : Asset
+{
+public:
+    MapAsset(SDLState * in_sdl)
+    : sdl(in_sdl)
+    {
+        tiles = new uint8_t[GameConstants::MapHeight*GameConstants::MapWidth];
+        memset(tiles,0,GameConstants::MapHeight*GameConstants::MapWidth);
+
+        playerx = 0;
+        playery = 50;
+        createPath();
+    }
+    ~MapAsset()
+    {
+        delete tiles;
+    }
+    void createPath()
+    {
+        std::mt19937_64 r(time(0));
+        std::uniform_real_distribution<float> u(0.f,1.f);
+
+        int32_t y = playery;
+        float ybias = (u(r)*1.f)-0.5f;
+        for(int32_t x=playerx;x<GameConstants::MapWidth-1;++x)
+        {
+            tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+                   //  Random Component + Center Bias
+            ybias += ((u(r)-0.5f)/2.f) + (((y-50)*-1.f)/500.f);
+            if(ybias>0.33)
+            {
+                ybias = MIN(ybias,1.f);
+                y = MIN(y+1,GameConstants::MapHeight);
+                tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+            }
+            else if (ybias<-0.33)
+            {
+                ybias = MAX(ybias,-5.f);
+                y = MAX(y-1,0);
+                tiles[(y*GameConstants::MapWidth)+x] = (uint8_t)1;
+            }
+
+        }
+    }
+    void render()
+    {
+        int32_t cy = 50;
+        for(int32_t x=0;x<GameConstants::MapWidth;++x)
+        {
+            for(int32_t y=-2;y<2;++y)
+            {
+                if(tiles[(MIN(cy+y,GameConstants::MapHeight-1)*GameConstants::MapWidth)+x]==1)
+                {
+                    SDL_Rect dst;
+                    dst.x = x;
+                    dst.y = cy+y;
+                    dst.w = 0;
+                    dst.h = 0 ;
+                    SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+                    SDL_RenderDrawRect(sdl->renderer, &dst);
+                    cy += y;
+                    break;
+                }
+            }
+        }
+    }
+private:
+    SDLState * sdl = nullptr;
+    uint8_t * tiles;
+    uint32_t playerx;
+    uint32_t playery;
 };
 
 class GameScene
@@ -180,14 +257,16 @@ public:
     DevScene(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
-        
+        map = new MapAsset(sdl);
     }
     virtual ~DevScene()
     {
-        
+        delete map;
+        map = nullptr;
     }
     virtual void render()
     {
+        map->render();
         player->render();
     }
     virtual bool advance()
@@ -230,11 +309,18 @@ public:
             }
             break;
         }
+        case SDLK_SPACE:
+        {
+            delete map;
+            map = new MapAsset(sdl);
+            break;
+        }
         }
     }
 private:
     SDLState * sdl;
     PlayerState * player;
+    MapAsset * map;
 };
 
 class SplashScene : public GameScene
@@ -548,11 +634,11 @@ public:
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
         scene_queue.push(new TitleCardScene(sdl));
-        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::AlphaFlight));
+        scene_queue.push(new DevScene(sdl,player));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
         scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
-        scene_queue.push(new DevScene(sdl,player));
+        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
     }
     ~GameState()
     {
