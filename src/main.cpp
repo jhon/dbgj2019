@@ -160,8 +160,8 @@ public:
         dst.h = _height;
         
         SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
-        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-        SDL_RenderDrawRect(sdl->renderer, &dst);
+        //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        //SDL_RenderDrawRect(sdl->renderer, &dst);
     }
 private:
     SDLState * sdl = nullptr;
@@ -172,8 +172,8 @@ private:
 class MapAsset : Asset
 {
 public:
-    MapAsset(SDLState * in_sdl)
-    : sdl(in_sdl)
+    MapAsset(SDLState * in_sdl, PlayerState * in_player)
+    : sdl(in_sdl), player(in_player)
     {
         tiles = new uint8_t[GameConstants::MapHeight*GameConstants::MapWidth];
         memset(tiles,0,GameConstants::MapHeight*GameConstants::MapWidth);
@@ -181,6 +181,9 @@ public:
         playerx = 0;
         playery = 50;
         createPath();
+
+        player->setX((GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2));
+        player->setY((GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2));
     }
     ~MapAsset()
     {
@@ -215,31 +218,74 @@ public:
     }
     void render()
     {
-        int32_t cy = 50;
-        for(int32_t x=0;x<GameConstants::MapWidth;++x)
+        static const int32_t NumTilesWide = (GameConstants::ScreenWidth/GameConstants::GridWidth)+2;
+        static const int32_t NumTilesHigh = (GameConstants::ScreenHeight/GameConstants::GridHeight)+2;
+        static const int32_t NumTilesWide2 = NumTilesWide/2;
+        static const int32_t NumTilesHigh2 = NumTilesHigh/2;
+        static const int32_t TopLeftX = (GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2)-(GameConstants::GridWidth*NumTilesWide2);
+        static const int32_t TopLeftY = (GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2)-(GameConstants::GridWidth*NumTilesHigh2);
+
+        //printf("NumTiles = %i,%i\n",NumTilesWide2,NumTilesHigh2);
+        //printf("TopLeft = %i,%i\n",TopLeftX,TopLeftY);
+
+        for(int32_t y=0;y<NumTilesHigh;++y)
         {
-            for(int32_t y=-2;y<2;++y)
+            int32_t tiley = y+playery-NumTilesHigh2;
+            if(tiley<0)
             {
-                if(tiles[(MIN(cy+y,GameConstants::MapHeight-1)*GameConstants::MapWidth)+x]==1)
+                continue;
+            }
+            if(tiley>=GameConstants::MapHeight)
+            {
+                break;
+            }
+            for(int32_t x=0;x<NumTilesWide;++x)
+            {
+                int32_t tilex = x+playerx-NumTilesWide2;
+                if(tilex<0)
+                {
+                    continue;
+                }
+                if(tilex>=GameConstants::MapWidth)
+                {
+                    break;
+                }
+                if(tiles[(tiley*GameConstants::MapWidth)+tilex]==1)
                 {
                     SDL_Rect dst;
-                    dst.x = x;
-                    dst.y = cy+y;
-                    dst.w = 0;
-                    dst.h = 0 ;
+                    dst.x = TopLeftX+(x*GameConstants::GridWidth);
+                    dst.y = TopLeftY+(y*GameConstants::GridHeight);
+                    dst.w = GameConstants::GridWidth;
+                    dst.h = GameConstants::GridHeight;
+                    //printf("%i,%i->%i,%i\n",x,y,dst.x,dst.y);
                     SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
                     SDL_RenderDrawRect(sdl->renderer, &dst);
-                    cy += y;
-                    break;
                 }
             }
         }
     }
+    void moveUp()
+    {
+        playery = MAX(playery-1,0);
+    }
+    void moveDown()
+    {
+        playery = MIN(playery+1,GameConstants::MapHeight);
+    }
+    void moveLeft()
+    {
+        playerx = MAX(playerx-1,0);
+    }
+    void moveRight()
+    {
+        playerx = MIN(playerx+1,GameConstants::MapWidth);
+    }
 private:
     SDLState * sdl = nullptr;
+    PlayerState * player = nullptr;
     uint8_t * tiles;
-    uint32_t playerx;
-    uint32_t playery;
+    int32_t playerx;
+    int32_t playery;
 };
 
 class GameScene
@@ -257,7 +303,7 @@ public:
     DevScene(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
-        map = new MapAsset(sdl);
+        map = new MapAsset(sdl,player);
     }
     virtual ~DevScene()
     {
@@ -279,40 +325,28 @@ public:
         {
         case SDLK_UP:
         {
-            if (player->getY() >= GameConstants::GridHeight)
-            {
-                player->setY(player->getY()-GameConstants::GridHeight);
-            }
+            map->moveUp();
             break;
         }
         case SDLK_DOWN:
         {
-            if (player->getY()+player->getHeight()<GameConstants::ScreenHeight)
-            {
-                player->setY(player->getY()+GameConstants::GridHeight);
-            }
+            map->moveDown();
             break;
         }
         case SDLK_LEFT:
         {
-            if (player->getX() >= GameConstants::GridWidth)
-            {
-                player->setX(player->getX()-GameConstants::GridWidth);
-            }
+            map->moveLeft();
             break;
         }
         case SDLK_RIGHT:
         {
-            if (player->getX()+player->getWidth()<GameConstants::ScreenWidth)
-            {
-                player->setX(player->getX()+GameConstants::GridWidth);
-            }
+            map->moveRight();
             break;
         }
-        case SDLK_SPACE:
+        case SDLK_F5:
         {
             delete map;
-            map = new MapAsset(sdl);
+            map = new MapAsset(sdl,player);
             break;
         }
         }
