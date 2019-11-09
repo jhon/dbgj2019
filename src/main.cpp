@@ -160,28 +160,27 @@ private:
     SDL_Texture * texture;
 };
 
-class PlayerState : public Asset
+class AnimatedAsset : public Asset
 {
 public:
-    PlayerState(SDLState * in_sdl)
-    : sdl(in_sdl),
-    image(nullptr),
-    texture(nullptr)
+    AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames)
+    : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames)
     {
-        image = IMG_Load("assets/hero.png");
+        image = IMG_Load(in_filename);
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
         _width = GameConstants::GridWidth;
         _height = GameConstants::GridHeight;
     }
-    ~PlayerState()
+    ~AnimatedAsset()
     {
         SDL_DestroyTexture(texture);
         SDL_FreeSurface(image);
     }
+
     void render()
     {
         SDL_Rect src;
-        src.x = 16+((SDL_GetTicks()/250)%4)*16;
+        src.x = 16+((SDL_GetTicks()/timePerFrame)%numFrames)*16;
         src.y = 0;
         src.w = 16;
         src.h = 16;
@@ -200,6 +199,17 @@ private:
     SDLState * sdl = nullptr;
     SDL_Surface * image = nullptr;
     SDL_Texture * texture = nullptr;
+    uint32_t timePerFrame = 200;
+    uint32_t numFrames = 1;
+};
+
+class PlayerState : public AnimatedAsset
+{
+public:
+    PlayerState(SDLState * in_sdl)
+    : AnimatedAsset(in_sdl, "assets/hero.png", 250, 4)
+    {
+    }
 };
 
 class MapAsset : Asset
