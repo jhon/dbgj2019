@@ -25,6 +25,8 @@ typedef struct SGameConstants
 
 typedef struct SGameContent
 {
+    inline static const char * Title = "The Desert Styx";
+    inline static const char * Subtitle = "press any key";
     inline static const char * IntroText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
 Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. \
 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
@@ -159,6 +161,7 @@ public:
     virtual ~GameScene() {};
     virtual void render() = 0;
     virtual bool advance() = 0;
+    virtual void keydown(SDL_Keycode keycode) = 0;
 };
 
 class DevScene : public GameScene
@@ -180,6 +183,44 @@ public:
     virtual bool advance()
     {
         return false;
+    }
+    virtual void keydown(SDL_Keycode keycode)
+    {
+        switch (keycode)
+        {
+        case SDLK_UP:
+        {
+            if (player->getY() >= GameConstants::GridHeight)
+            {
+                player->setY(player->getY()-GameConstants::GridHeight);
+            }
+            break;
+        }
+        case SDLK_DOWN:
+        {
+            if (player->getY()+player->getHeight()<GameConstants::ScreenHeight)
+            {
+                player->setY(player->getY()+GameConstants::GridHeight);
+            }
+            break;
+        }
+        case SDLK_LEFT:
+        {
+            if (player->getX() >= GameConstants::GridWidth)
+            {
+                player->setX(player->getX()-GameConstants::GridWidth);
+            }
+            break;
+        }
+        case SDLK_RIGHT:
+        {
+            if (player->getX()+player->getWidth()<GameConstants::ScreenWidth)
+            {
+                player->setX(player->getX()+GameConstants::GridWidth);
+            }
+            break;
+        }
+        }
     }
 private:
     SDLState * sdl;
@@ -240,6 +281,7 @@ public:
     {
         return completed;
     }
+    virtual void keydown(SDL_Keycode keycode) {}
 private:
     SDLState * sdl;
     CardAsset * logo;
@@ -344,6 +386,7 @@ public:
     {
         return completed;
     }
+    virtual void keydown(SDL_Keycode keycode) {}
 private:
     SDLState * sdl;
     CardAsset * banner;
@@ -415,6 +458,7 @@ public:
     {
         return completed;
     }
+    virtual void keydown(SDL_Keycode keycode) {}
 private:
     SDLState * sdl;
     SDL_Surface * text_surface;
@@ -422,6 +466,111 @@ private:
     SDL_Rect text_source;
     SDL_Rect text_dest;
     uint32_t firstTick;
+    bool completed;
+};
+class TitleCardScene : public GameScene
+{
+public:
+    TitleCardScene(SDLState * in_sdl)
+    : sdl(in_sdl), firstTick(0), lastTick(0), completed(false)
+    {
+        title_source.x = 0;
+        title_source.y = 0;
+        TTF_SizeText(sdl->title_font,GameContent::Title,&title_source.w,&title_source.h);
+        title_dest.x = (GameConstants::ScreenWidth - title_source.w)/2;
+        title_dest.y = (GameConstants::ScreenHeight - title_source.h)/2;
+        title_dest.w = title_source.w;
+        title_dest.h = title_source.h;
+        title_surface = TTF_RenderText_Blended(sdl->title_font,GameContent::Title,SDL_Color{0xff,0xff,0xff,0xff});
+        title_texture = SDL_CreateTextureFromSurface(sdl->renderer, title_surface);
+
+        subtitle_source.x = 0;
+        subtitle_source.y = 0;
+        TTF_SizeText(sdl->exposition_font,GameContent::Subtitle,&subtitle_source.w,&subtitle_source.h);
+        subtitle_dest.x = (GameConstants::ScreenWidth - subtitle_source.w)/2;
+        subtitle_dest.y = title_dest.y + title_dest.h;
+        subtitle_dest.w = subtitle_source.w;
+        subtitle_dest.h = subtitle_source.h;
+        subtitle_surface = TTF_RenderText_Blended(sdl->exposition_font,GameContent::Subtitle,SDL_Color{0xff,0xff,0xff,0xff});
+        subtitle_texture = SDL_CreateTextureFromSurface(sdl->renderer, subtitle_surface);
+    }
+    virtual ~TitleCardScene()
+    {
+        SDL_DestroyTexture(title_texture);
+        SDL_FreeSurface(title_surface);
+
+        SDL_DestroyTexture(subtitle_texture);
+        SDL_FreeSurface(subtitle_surface);
+    }
+    virtual void render()
+    {
+        if(firstTick==0)
+        {
+            firstTick = SDL_GetTicks();
+            return;
+        }
+        
+        uint32_t alpha = 0;
+        if(lastTick == 0)
+        {
+            // (0-1000]    Ramp up
+            // (1000,] Full on
+            uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)((deltaTicks/1000.f)*255);
+            }
+            else
+            {
+                alpha = 255;
+            }
+        }
+        else
+        {
+            // (0-1000]    Ramp down
+            // (1000,]      We out
+            uint32_t deltaTicks = SDL_GetTicks() - lastTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)(((1000-deltaTicks)/1000.f)*255);
+            }
+            else
+            {
+                completed = true;
+                return;
+            }
+        }
+        
+
+        SDL_SetTextureAlphaMod(title_texture, alpha);
+        SDL_RenderCopy(sdl->renderer, title_texture, &title_source, &title_dest);
+
+        SDL_SetTextureAlphaMod(subtitle_texture, alpha);
+        SDL_RenderCopy(sdl->renderer, subtitle_texture, &subtitle_source, &subtitle_dest);
+    }
+    virtual bool advance()
+    {
+        return completed;
+    }
+    virtual void keydown(SDL_Keycode keycode)
+    {
+        if(lastTick == 0)
+        {
+            lastTick = SDL_GetTicks();
+        }
+    }
+private:
+    SDLState * sdl;
+    SDL_Surface * title_surface;
+    SDL_Texture * title_texture;
+    SDL_Rect title_source;
+    SDL_Rect title_dest;
+    SDL_Surface * subtitle_surface;
+    SDL_Texture * subtitle_texture;
+    SDL_Rect subtitle_source;
+    SDL_Rect subtitle_dest;
+    uint32_t firstTick;
+    uint32_t lastTick;
     bool completed;
 };
 
@@ -433,6 +582,7 @@ public:
     {
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
+        scene_queue.push(new TitleCardScene(sdl));
         scene_queue.push(new TextCardScene(sdl,GameContent::IntroText));
         scene_queue.push(new BannerScene(sdl,DBShift::DawnGuard,"Dawn Guard"));
         scene_queue.push(new BannerScene(sdl,DBShift::AlphaFlight,"Alpha Flight"));
@@ -467,6 +617,15 @@ public:
 
         SDL_RenderPresent(sdl->renderer);
     }
+
+    void keydown(SDL_Keycode keycode)
+    {
+        if(!scene_queue.empty())
+        {
+            scene_queue.front()->keydown(keycode);
+        }
+    }
+
     PlayerState * player = nullptr;
     SDLState * sdl = nullptr;
 private:
@@ -494,42 +653,7 @@ int main_tick() {
         }
         case SDL_KEYDOWN:
         {
-            PlayerState * p = s_state->player;
-            switch (event.key.keysym.sym)
-            {
-            case SDLK_UP:
-            {
-                if (p->getY() >= GameConstants::GridHeight)
-                {
-                    p->setY(p->getY()-GameConstants::GridHeight);
-                }
-                break;
-            }
-            case SDLK_DOWN:
-            {
-                if (p->getY()+p->getHeight()<GameConstants::ScreenHeight)
-                {
-                    p->setY(p->getY()+GameConstants::GridHeight);
-                }
-                break;
-            }
-            case SDLK_LEFT:
-            {
-                if (p->getX() >= GameConstants::GridWidth)
-                {
-                    p->setX(p->getX()-GameConstants::GridWidth);
-                }
-                break;
-            }
-            case SDLK_RIGHT:
-            {
-                if (p->getX()+p->getWidth()<GameConstants::ScreenWidth)
-                {
-                    p->setX(p->getX()+GameConstants::GridWidth);
-                }
-                break;
-            }
-            }
+            s_state->keydown(event.key.keysym.sym);
             break;
         }
         }
@@ -566,7 +690,7 @@ int main(int argc, char *argv[])
     SDLState * sdl = new SDLState;
 
     sdl->window = SDL_CreateWindow(
-        "WEBASM",
+        GameContent::Title,
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         GameConstants::ScreenWidth, GameConstants::ScreenHeight,
         SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
