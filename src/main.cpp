@@ -25,6 +25,14 @@ typedef struct SGameConstants
     static const int32_t Margin = 32;
     static const int32_t MapWidth = 128;
     static const int32_t MapHeight = 128;
+
+    // Derived Constants
+    static const int32_t NumTilesWide = (ScreenWidth/GridWidth)+2;
+    static const int32_t NumTilesHigh = (ScreenHeight/GridHeight)+2;
+    static const int32_t NumTilesWide2 = NumTilesWide/2;
+    static const int32_t NumTilesHigh2 = NumTilesHigh/2;
+    static const int32_t TopLeftX = (ScreenWidth/2)-(GridWidth/2)-(GridWidth*NumTilesWide2);
+    static const int32_t TopLeftY = (ScreenHeight/2)-(GridHeight/2)-(GridWidth*NumTilesHigh2);
 } GameConstants;
 
 typedef struct SGameContent
@@ -297,19 +305,14 @@ public:
     }
     void render()
     {
-        static const int32_t NumTilesWide = (GameConstants::ScreenWidth/GameConstants::GridWidth)+2;
-        static const int32_t NumTilesHigh = (GameConstants::ScreenHeight/GameConstants::GridHeight)+2;
-        static const int32_t NumTilesWide2 = NumTilesWide/2;
-        static const int32_t NumTilesHigh2 = NumTilesHigh/2;
-        static const int32_t TopLeftX = (GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2)-(GameConstants::GridWidth*NumTilesWide2);
-        static const int32_t TopLeftY = (GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2)-(GameConstants::GridWidth*NumTilesHigh2);
+
 
         //printf("NumTiles = %i,%i\n",NumTilesWide2,NumTilesHigh2);
         //printf("TopLeft = %i,%i\n",TopLeftX,TopLeftY);
 
-        for(int32_t y=0;y<NumTilesHigh;++y)
+        for(int32_t y=0;y<GameConstants::NumTilesHigh;++y)
         {
-            int32_t tiley = y+playery-NumTilesHigh2;
+            int32_t tiley = y+playery-GameConstants::NumTilesHigh2;
             if(tiley<0)
             {
                 continue;
@@ -318,9 +321,9 @@ public:
             {
                 break;
             }
-            for(int32_t x=0;x<NumTilesWide;++x)
+            for(int32_t x=0;x<GameConstants::NumTilesWide;++x)
             {
-                int32_t tilex = x+playerx-NumTilesWide2;
+                int32_t tilex = x+playerx-GameConstants::NumTilesWide2;
                 if(tilex<0)
                 {
                     continue;
@@ -339,8 +342,7 @@ public:
                 src.h = 16;
         
                 SDL_Rect dst;
-                dst.x = TopLeftX+(x*GameConstants::GridWidth);
-                dst.y = TopLeftY+(y*GameConstants::GridHeight);
+                toScreenCoords(x,y,dst.x,dst.y);
                 dst.w = GameConstants::GridWidth;
                 dst.h = GameConstants::GridHeight;
                 SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
@@ -362,6 +364,11 @@ public:
     int16_t at(int32_t x, int32_t y)
     {
         return tiles[(y*GameConstants::MapWidth)+x];
+    }
+    void toScreenCoords(int32_t grid_x, int32_t grid_y, int32_t & pixel_x, int32_t & pixel_y)
+    {
+        pixel_x = GameConstants::TopLeftX+(grid_x*GameConstants::GridWidth);
+        pixel_y = GameConstants::TopLeftY+(grid_y*GameConstants::GridHeight);
     }
     bool canMove(int32_t x, int32_t y)
     {
