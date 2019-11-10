@@ -37,6 +37,14 @@ constexpr float lerp(int32_t a, int32_t b, int32_t n, int32_t d)
 
 std::mt19937_64 RandomEngine;
 
+typedef struct SLevelSettings
+{
+    int32_t numSpirits = 20;
+    int32_t numScorpions = 20;
+    int32_t numSkeletons = 0;
+    bool isNight = false;
+} LevelSettings;
+
 typedef struct SGameConstants
 {
     static const int32_t ScreenWidth = 1280;
@@ -66,6 +74,12 @@ typedef struct SGameContent
     inline static const char * ContinueExposition = "press any key";
     inline static const char * GameOverText = "Game Over";
     inline static const char * ScoreText = "Spirits Collected: %i";
+
+    inline static const LevelSettings LevelOneSettings   = {.numSpirits = 20, .numScorpions = 20, .numSkeletons= 0,  .isNight = false };
+    inline static const LevelSettings LevelTwoSettings   = {.numSpirits = 20, .numScorpions = 20, .numSkeletons= 10, .isNight = true  };
+    inline static const LevelSettings LevelThreeSettings = {.numSpirits = 20, .numScorpions = 20, .numSkeletons= 20, .isNight = true  };
+    inline static const LevelSettings LevelFourSettings  = {.numSpirits = 20, .numScorpions = 20, .numSkeletons= 40, .isNight = false };
+
     inline static const char * AlphaFlightExposition = "Alpha Flight\n\
 \n\
 For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
@@ -459,8 +473,8 @@ public:
 		RoadDesert4     = 0x25,
         RoadDesertEnd   = 0x25,
     };
-    MapAsset(SDLState * in_sdl, PlayerState * in_player)
-    : sdl(in_sdl), player(in_player)
+    MapAsset(SDLState * in_sdl, PlayerState * in_player, bool in_isNight)
+    : sdl(in_sdl), player(in_player), isNight(in_isNight)
     {
         std::uniform_real_distribution<float> u(0,1.f);
         std::uniform_int_distribution<int32_t> terraingen(Tile::DesertBegin,Tile::DesertEnd);
@@ -559,7 +573,7 @@ public:
 
                 SDL_Rect src;
                 src.x = 16*(tileValue&0xff);
-                src.y = 0;
+                src.y = (isNight)?16:0;
                 src.w = 16;
                 src.h = 16;
         
@@ -647,6 +661,7 @@ private:
     SDL_Texture * texture = nullptr;
     uint16_t * tiles;
     int32_t road[GameConstants::MapWidth];
+    bool isNight = false;
 };
 
 class GameScene
@@ -661,12 +676,10 @@ public:
 class DesertLevel : public GameScene
 {
 public:
-    static const uint32_t TotalSpirits = 20;
-    static const uint32_t TotalScorpions = 20;
-    DesertLevel(SDLState * in_sdl, PlayerState * in_player)
-    : sdl(in_sdl), player(in_player)
+    DesertLevel(SDLState * in_sdl, PlayerState * in_player, LevelSettings in_settings)
+    : sdl(in_sdl), player(in_player), settings(in_settings)
     {
-        map = new MapAsset(sdl,player);
+        map = new MapAsset(sdl,player,settings.isNight);
         createMobs();
         createScoreText();
     }
@@ -688,7 +701,7 @@ public:
         // 2) Get That Road's Y
         // 3) random y between max(0,y-20) min(mapheight,y+20)
         int32_t x, y;
-        for(int32_t i = 0; i < TotalSpirits; ++i)
+        for(int32_t i = 0; i < settings.numSpirits; ++i)
         {
             x = ux(RandomEngine);
             y = map->getRoadY(x);
@@ -703,7 +716,7 @@ public:
             mobs.back()->setGridY(newY);
         }
 
-        for(int32_t i = 0; i < TotalScorpions; ++i)
+        for(int32_t i = 0; i < settings.numScorpions; ++i)
         {
             x = -1;
             y = -1;
@@ -1029,7 +1042,7 @@ public:
         case SDLK_F5:
         {
             delete map;
-            map = new MapAsset(sdl,player);
+            map = new MapAsset(sdl,player,settings.isNight);
             deleteMobs();
             createMobs();
             break;
@@ -1069,6 +1082,7 @@ private:
     bool levelComplete = false;
     bool gameOver = false;
     bool firstRender = true;
+    LevelSettings settings;
 };
 
 class SplashScene : public GameScene
@@ -1495,16 +1509,16 @@ public:
                     scene = new TextCardScene(sdl,GameContent::DawnGuardExposition,DBShift::DawnGuard);
                     break;
                 case GameStage::LevelOne:
-                    scene = new DesertLevel(sdl,player); 
+                    scene = new DesertLevel(sdl,player,GameContent::LevelOneSettings); 
                     break;
                 case GameStage::LevelFour:
-                    scene = new DesertLevel(sdl,player);
+                    scene = new DesertLevel(sdl,player,GameContent::LevelTwoSettings);
                     break;
                 case GameStage::LevelTwo:
-                    scene = new DesertLevel(sdl,player);
+                    scene = new DesertLevel(sdl,player,GameContent::LevelThreeSettings);
                     break;
                 case GameStage::LevelThree:
-                    scene = new DesertLevel(sdl,player);
+                    scene = new DesertLevel(sdl,player,GameContent::LevelFourSettings);
                     break;
                 case GameStage::GameOver:
                     scene = new EndGameScene(sdl,player);

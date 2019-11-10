@@ -94,7 +94,7 @@
                 "/Gd",
                 "/Oi",
                 "/Gy",
-                "/std:c++17",
+                "/std:c++latest",
                 "/Iextern/SDL2/include",
                 "/Iextern/SDL2/include/SDL2",
                 "/Iextern/SDL2_ttf/include",
