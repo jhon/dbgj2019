@@ -184,11 +184,11 @@ public:
     : sdl(in_sdl)
     {
         char buffer[4096];
-        size_t buffer_size = _countof(buffer);
+        size_t buffer_size = sizeof(buffer)/sizeof(buffer[0]);
 
         va_list va_args;
         va_start(va_args, in_format);
-        int len = vsprintf_s(buffer, buffer_size, in_format, va_args);
+        int len = vsprintf(buffer, in_format, va_args);
         va_end(va_args);
 
         // Ensure the text terminates
@@ -1178,6 +1178,11 @@ public:
                     break;
                 case GameStage::GameOver:
                     scene = new EndGameScene(sdl,player);
+                    break;
+                case GameStage::Reset:
+                case GameStage::Advance:
+                default:
+                    // Ignored
                     break;
             }
         }
