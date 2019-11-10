@@ -28,6 +28,13 @@
 #define MAX(a,b) ((a) > (b) ? a : b)
 #define MIN(a,b) ((a) < (b) ? a : b)
 
+constexpr float lerp(int32_t a, int32_t b, int32_t n, int32_t d)
+{
+    float r = (float)n/d;
+    if(r>1.f) r = 1.f;
+    return (a*(1-r))+(b*r);
+}
+
 std::mt19937_64 RandomEngine;
 
 typedef struct SGameConstants
@@ -150,6 +157,7 @@ enum class GameStage : int32_t
 
 enum class GamePhase
 {
+    Input,
     Player,
     Enemy,
 };
@@ -176,6 +184,7 @@ typedef struct GameState
     SDLState * sdl;
     GameStage stage = GameStage::Splash;
     GamePhase phase = GamePhase::Player;
+    uint32_t phaseChange = 0;
 } GameState;
 
 GameState * s_state;
@@ -188,10 +197,40 @@ public:
     void setX(int32_t x) { _x = x; };
     void setY(int32_t y) { _y = y; };
 
-    int32_t getGridX() { return _grid_x; }
-    int32_t getGridY() { return _grid_y; }
-    void setGridX(int32_t x) { _grid_x = x; };
-    void setGridY(int32_t y) { _grid_y = y; };
+    int32_t getGridX() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x; return _grid_x; };
+    int32_t getGridY() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y; return _grid_y; };
+    void setGridX(int32_t x) { _target_grid_x = _grid_x = x; };
+    void setGridY(int32_t y) { _target_grid_y = _grid_y = y; };
+
+    float getGridLerpX() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x; return gridlerp(_grid_x,_target_grid_x); }
+    float getGridLerpY() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y; return gridlerp(_grid_y, _target_grid_y); }
+    float getGridOffsetX()
+    {
+        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x;
+        return gridlerp(0, _target_grid_x - _grid_x);
+    }
+    float getGridOffsetY()
+    {
+        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y;
+        return gridlerp(0, _target_grid_y - _grid_y);
+    }
+    float getGridInvOffsetX()
+    {
+        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x;
+        if(_grid_x == _target_grid_x) return 0;
+        return 1.f - gridlerp(0, _target_grid_x - _grid_x);
+    }
+    float getGridInvOffsetY()
+    {
+        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y;
+        if(_grid_y == _target_grid_y) return 0;
+        return 1.f - gridlerp(0, _target_grid_y - _grid_y);
+    }
+
+    int32_t getTargetGridX() { return _target_grid_x; };
+    int32_t getTargetGridY() { return _target_grid_y; };
+    void setTargetGridX(int32_t x) { _target_grid_x = x; };
+    void setTargetGridY(int32_t y) { _target_grid_y = y; };
 
     int32_t getWidth() { return _width; };
     int32_t getHeight() { return _height; };
@@ -199,6 +238,12 @@ public:
     int32_t getAlpha() { return _alpha; };
     void setAlpha(int32_t a) { _alpha = a; };
 protected:
+    float gridlerp(int32_t a, int32_t b)
+    {
+        if(a==b) return (float)a;
+        return lerp(a,b,SDL_GetTicks()-s_state->phaseChange,200);
+    }
+
     int32_t _x = 0;
     int32_t _y = 0;
     int32_t _width = 0;
@@ -206,6 +251,8 @@ protected:
     int32_t _alpha = 0xff;
     int32_t _grid_x = 0;
     int32_t _grid_y = 0;
+    int32_t _target_grid_x = 0;
+    int32_t _target_grid_y = 0;
 };
 
 class CardAsset : public Asset
@@ -501,25 +548,25 @@ public:
     }
     void render()
     {
-        for(int32_t y=0;y<GameConstants::NumTilesHigh;++y)
+        for(int32_t y=0;y<GameConstants::NumTilesHigh+1;++y)
         {
             int32_t tiley = y+player->getGridY()-GameConstants::NumTilesHigh2;
             if(tiley<0)
             {
                 continue;
             }
-            if(tiley>=GameConstants::MapHeight)
+            if((int32_t)tiley>=GameConstants::MapHeight)
             {
                 break;
             }
-            for(int32_t x=0;x<GameConstants::NumTilesWide;++x)
+            for(int32_t x=0;x<GameConstants::NumTilesWide+1;++x)
             {
-                int32_t tilex = x+player->getGridX()-GameConstants::NumTilesWide2;
+                int32_t tilex = (int32_t)(x+player->getGridX()-GameConstants::NumTilesWide2);
                 if(tilex<0)
                 {
                     continue;
                 }
-                if(tilex>=GameConstants::MapWidth)
+                if((int32_t)tilex>=GameConstants::MapWidth)
                 {
                     break;
                 }
@@ -533,8 +580,8 @@ public:
                 src.h = 16;
         
                 SDL_Rect dst;
-                dst.x = GameConstants::TopLeftX+(x*GameConstants::GridWidth);
-                dst.y = GameConstants::TopLeftY+(y*GameConstants::GridHeight);
+                dst.x = (int32_t)(GameConstants::TopLeftX+((x+(player->getGridOffsetX()*-1.f))*GameConstants::GridWidth));
+                dst.y = (int32_t)(GameConstants::TopLeftY+((y+(player->getGridOffsetY()*-1.f))*GameConstants::GridHeight));
                 dst.w = GameConstants::GridWidth;
                 dst.h = GameConstants::GridHeight;
                 SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
@@ -561,12 +608,12 @@ public:
         }
         return road[x];
     }
-    void toScreenCoords(int32_t grid_x, int32_t grid_y, int32_t & pixel_x, int32_t & pixel_y)
+    void toScreenCoords(float grid_x, float grid_y, int32_t & pixel_x, int32_t & pixel_y)
     {
-        grid_x -= player->getGridX()-GameConstants::NumTilesWide2;
-        grid_y -= player->getGridY()-GameConstants::NumTilesHigh2;
-        pixel_x = GameConstants::TopLeftX+(grid_x*GameConstants::GridWidth);
-        pixel_y = GameConstants::TopLeftY+(grid_y*GameConstants::GridHeight);
+        grid_x -= player->getGridLerpX()-GameConstants::NumTilesWide2;
+        grid_y -= player->getGridLerpY()-GameConstants::NumTilesHigh2;
+        pixel_x = (int32_t)(GameConstants::TopLeftX+(grid_x*GameConstants::GridWidth));
+        pixel_y = (int32_t)(GameConstants::TopLeftY+(grid_y*GameConstants::GridHeight));
     }
     bool canMove(int32_t x, int32_t y)
     {
@@ -700,7 +747,7 @@ public:
         int32_t y = 0;
         for(auto m : mobs)
         {    
-            map->toScreenCoords(m->getGridX(),m->getGridY(),x,y);
+            map->toScreenCoords(m->getGridLerpX(),m->getGridLerpY(),x,y);
             m->setX(x); m->setY(y);
             m->render();
         }
@@ -758,10 +805,10 @@ public:
             }
 
             // Do we need to move more X or more Y
-            int32_t x = m->getGridX();
-            int32_t y = m->getGridY();
-            int32_t dx = player->getGridX() - x;
-            int32_t dy = player->getGridY() - y;
+            int32_t x = (int32_t)(m->getGridX());
+            int32_t y = (int32_t)(m->getGridY());
+            int32_t dx = (int32_t)(player->getGridX() - x);
+            int32_t dy = (int32_t)(player->getGridY() - y);
             if(abs(dx)>abs(dy) && map->canMove(x+(dx/abs(dx)),y))
             {
                 if(dx!=0)
@@ -779,8 +826,8 @@ public:
 
             if(map->canMove(x,y) && !isMobAt(x,y))
             {
-                m->setGridX(x);
-                m->setGridY(y);
+                m->setTargetGridX(x);
+                m->setTargetGridY(y);
 
                 // If the player is here... they lose
                 if(player->getGridX()==x && player->getGridY()==y)
@@ -922,8 +969,8 @@ public:
     }
     virtual void keydown(SDL_Keycode keycode)
     {
-        int32_t playerx = player->getGridX();
-        int32_t playery = player->getGridY();
+        int32_t playerx = (int32_t) player->getGridX();
+        int32_t playery = (int32_t) player->getGridY();
         switch (keycode)
         {
         case SDLK_UP:
@@ -977,20 +1024,23 @@ public:
         }
         else if(collision != MobType::None)
         {
-            playerx = player->getGridX();
-            playery = player->getGridY();
+            playerx = (int32_t) player->getGridX();
+            playery = (int32_t) player->getGridY();
         }
 
-        player->setGridX(playerx);
-        player->setGridY(playery);
+        player->setTargetGridX(playerx);
+        player->setTargetGridY(playery);
+
+        s_state->phase = GamePhase::Player;
+        s_state->phaseChange = SDL_GetTicks();
         
-        uint16_t tile = map->at(player->getGridX(),player->getGridY());
+        uint16_t tile = map->at((int32_t)player->getGridX(),(int32_t)player->getGridY());
         if (tile == MapAsset::Tile::DesertStairsDown)
         {
             levelComplete = true;
         }
 
-        moveMobs();
+        //moveMobs();
     }
 private:
     SDLState * sdl = nullptr;
