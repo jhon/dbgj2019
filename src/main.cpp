@@ -612,6 +612,7 @@ class DesertLevel : public GameScene
 {
 public:
     static const uint32_t TotalSpirits = 20;
+    static const uint32_t TotalScorpions = 20;
     DesertLevel(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
@@ -629,7 +630,8 @@ public:
     }
     void createMobs()
     {
-        std::uniform_int_distribution<int32_t> uroad(0,GameConstants::MapWidth-1);
+        std::uniform_int_distribution<int32_t> ux(0,GameConstants::MapWidth-1);
+        std::uniform_int_distribution<int32_t> uy(0,GameConstants::MapHeight-1);
         // We're going to create TotalSpirits spirits randomly,
         // but we want them to them to be within 20 of the path
         // 1) Generate a random X
@@ -638,7 +640,7 @@ public:
         int32_t x, y;
         for(int32_t i = 0; i < TotalSpirits; ++i)
         {
-            x = uroad(RandomEngine);
+            x = ux(RandomEngine);
             y = map->getRoadY(x);
             std::uniform_int_distribution<int32_t> getNewY(MAX(0,y-20),MIN(GameConstants::MapHeight,y+20));
             int32_t newY = -1;
@@ -649,6 +651,20 @@ public:
             mobs.push_back(new MobAsset(sdl,MobType::Spirit));
             mobs.back()->setGridX(x);
             mobs.back()->setGridY(newY);
+        }
+
+        for(int32_t i = 0; i < TotalScorpions; ++i)
+        {
+            x = -1;
+            y = -1;
+            while(!map->canMove(x,y) && !isMobAtLocation(x,y))
+            {
+                x = ux(RandomEngine);
+                y = uy(RandomEngine);
+            }
+            mobs.push_back(new MobAsset(sdl,MobType::Scorpion));
+            mobs.back()->setGridX(x);
+            mobs.back()->setGridY(y);
         }
     }
     void deleteMobs()
@@ -670,19 +686,31 @@ public:
             m->render();
         }
     }
+    std::vector<MobAsset*>::iterator __findMobAtLocation(int32_t x, int32_t y)
+    {
+        std::vector<MobAsset*>::iterator it;
+        for(it = mobs.begin(); it != mobs.end(); ++it)
+        {
+            if((*it)->getGridX()==x && (*it)->getGridY()==y)
+            {
+                return it;
+            }
+        }
+        return it;
+    }
+    bool isMobAtLocation(int32_t x, int32_t y)
+    {
+        return __findMobAtLocation(x,y)!=mobs.end();
+    }
     MobType detectMobCollision()
     {
-        int32_t playerx = player->getGridX();
-        int32_t playery = player->getGridY();
         MobType result = MobType::None;
-        for(std::vector<MobAsset*>::iterator it = mobs.begin(); it != mobs.end(); ++it)
+
+        std::vector<MobAsset*>::iterator it = __findMobAtLocation(player->getGridX(), player->getGridY());
+        if(it!=mobs.end())
         {
-            if((*it)->getGridX()==playerx && (*it)->getGridY()==playery)
-            {
                 result = (*it)->getMobType();
                 mobs.erase(it);
-                break;
-            }
         }
         return result;
     }

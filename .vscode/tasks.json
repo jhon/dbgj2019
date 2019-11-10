@@ -70,6 +70,7 @@
                 "banner_zetashift.png",
                 "terrain.png",
                 "spirit.png",
+                "scorpion.png",
                 "kenney_pixel-webfont.ttf"
             ],
             "group": "build",
