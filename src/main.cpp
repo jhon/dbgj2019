@@ -388,6 +388,11 @@ public:
             }
             road[x] = y;
         }
+
+        // Put a stair in the last slot
+        int32_t x = GameConstants::MapWidth - 1;
+        y = road[x];
+        tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)Tile::DesertStairsDown;
     }
     void render()
     {
