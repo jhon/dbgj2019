@@ -69,6 +69,7 @@
                 "banner_nightwatch.png",
                 "banner_zetashift.png",
                 "terrain.png",
+                "spirit.png",
                 "kenney_pixel-webfont.ttf"
             ],
             "group": "build",

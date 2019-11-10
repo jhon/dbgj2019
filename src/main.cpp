@@ -106,6 +106,11 @@ public:
     void setX(int32_t x) { _x = x; };
     void setY(int32_t y) { _y = y; };
 
+    int32_t getGridX() { return _grid_x; }
+    int32_t getGridY() { return _grid_y; }
+    void setGridX(int32_t x) { _grid_x = x; };
+    void setGridY(int32_t y) { _grid_y = y; };
+
     int32_t getWidth() { return _width; };
     int32_t getHeight() { return _height; };
 
@@ -117,6 +122,8 @@ protected:
     int32_t _width = 0;
     int32_t _height = 0;
     int32_t _alpha = 0;
+    int32_t _grid_x = 0;
+    int32_t _grid_y = 0;
 };
 
 class CardAsset : public Asset
@@ -139,6 +146,12 @@ public:
     }
     void render()
     {
+        if(_x > GameConstants::ScreenWidth || _x < 0 - GameConstants::GridWidth ||
+           _y > GameConstants::ScreenHeight || _y < 0 - GameConstants::GridHeight)
+        {
+            return;
+        }
+
         SDL_Rect src;
         src.x = 0;
         src.y = 0;
@@ -179,6 +192,11 @@ public:
 
     void render()
     {
+        if(_x > GameConstants::ScreenWidth || _x < 0 - GameConstants::GridWidth ||
+           _y > GameConstants::ScreenHeight || _y < 0 - GameConstants::GridHeight)
+        {
+            return;
+        }
         SDL_Rect src;
         src.x = (((SDL_GetTicks()/timePerFrame)%numFrames)+frameOffset)*16;
         src.y = 0;
@@ -192,8 +210,8 @@ public:
         dst.h = _height;
         
         SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
-        //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-        //SDL_RenderDrawRect(sdl->renderer, &dst);
+        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        SDL_RenderDrawRect(sdl->renderer, &dst);
     }
 private:
     SDLState * sdl = nullptr;
@@ -209,6 +227,15 @@ class PlayerState : public AnimatedAsset
 public:
     PlayerState(SDLState * in_sdl)
     : AnimatedAsset(in_sdl, "assets/hero.png", 250, 4, 1)
+    {
+    }
+};
+
+class SpiritAsset : public AnimatedAsset
+{
+public:
+    SpiritAsset(SDLState * in_sdl)
+    : AnimatedAsset(in_sdl, "assets/spirit.png", 200, 4)
     {
     }
 };
@@ -293,8 +320,8 @@ public:
         image = IMG_Load("assets/terrain.png");
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
 
-        playerx = 0;
-        playery = 50;
+        player->setGridX(0);
+        player->setGridY(50);
         createPath();
 
         player->setX((GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2));
@@ -312,9 +339,9 @@ public:
         std::uniform_real_distribution<float> u(0.f,1.f);
         std::uniform_int_distribution<int32_t> uroad(Tile::RoadDesertBegin,Tile::RoadDesertEnd);
 
-        int32_t y = playery;
+        int32_t y = player->getGridY();
         float ybias = (u(r)*1.f)-0.5f;
-        for(int32_t x=playerx;x<GameConstants::MapWidth-1;++x)
+        for(int32_t x=player->getGridX();x<GameConstants::MapWidth;++x)
         {
             
                    //  Random Component + Center Bias
@@ -335,20 +362,14 @@ public:
             {
                 tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);    
             }
-            
-
+            road[x] = y;
         }
     }
     void render()
     {
-
-
-        //printf("NumTiles = %i,%i\n",NumTilesWide2,NumTilesHigh2);
-        //printf("TopLeft = %i,%i\n",TopLeftX,TopLeftY);
-
         for(int32_t y=0;y<GameConstants::NumTilesHigh;++y)
         {
-            int32_t tiley = y+playery-GameConstants::NumTilesHigh2;
+            int32_t tiley = y+player->getGridY()-GameConstants::NumTilesHigh2;
             if(tiley<0)
             {
                 continue;
@@ -359,7 +380,7 @@ public:
             }
             for(int32_t x=0;x<GameConstants::NumTilesWide;++x)
             {
-                int32_t tilex = x+playerx-GameConstants::NumTilesWide2;
+                int32_t tilex = x+player->getGridX()-GameConstants::NumTilesWide2;
                 if(tilex<0)
                 {
                     continue;
@@ -378,7 +399,8 @@ public:
                 src.h = 16;
         
                 SDL_Rect dst;
-                toScreenCoords(x,y,dst.x,dst.y);
+                dst.x = GameConstants::TopLeftX+(x*GameConstants::GridWidth);
+                dst.y = GameConstants::TopLeftY+(y*GameConstants::GridHeight);
                 dst.w = GameConstants::GridWidth;
                 dst.h = GameConstants::GridHeight;
                 SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
@@ -390,10 +412,6 @@ public:
                     src.x = 16*(tileValue&0xff);
                     SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
                 }
-
-                //printf("%i,%i->%i,%i\n",x,y,dst.x,dst.y);
-                //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-                //SDL_RenderDrawRect(sdl->renderer, &dst);
             }
         }
     }
@@ -401,8 +419,18 @@ public:
     {
         return tiles[(y*GameConstants::MapWidth)+x];
     }
+    int32_t getRoadY(int32_t x)
+    {
+        if(x < 0 || x > GameConstants::MapWidth)
+        {
+            return -1;
+        }
+        return road[x];
+    }
     void toScreenCoords(int32_t grid_x, int32_t grid_y, int32_t & pixel_x, int32_t & pixel_y)
     {
+        grid_x -= player->getGridX()-GameConstants::NumTilesWide2;
+        grid_y -= player->getGridY()-GameConstants::NumTilesHigh2;
         pixel_x = GameConstants::TopLeftX+(grid_x*GameConstants::GridWidth);
         pixel_y = GameConstants::TopLeftY+(grid_y*GameConstants::GridHeight);
     }
@@ -446,42 +474,13 @@ public:
 
         return validTile;
     }
-    void moveUp()
-    {
-        if(canMove(playerx,playery-1))
-        {
-            playery -= 1;
-        }
-    }
-    void moveDown()
-    {
-        if(canMove(playerx,playery+1))
-        {
-            playery += 1;
-        }
-    }
-    void moveLeft()
-    {
-        if(canMove(playerx-1,playery))
-        {
-            playerx -= 1;
-        }
-    }
-    void moveRight()
-    {
-        if(canMove(playerx+1,playery))
-        {
-            playerx += 1;
-        }
-    }
 private:
     SDLState * sdl = nullptr;
     PlayerState * player = nullptr;
     SDL_Surface * image = nullptr;
     SDL_Texture * texture = nullptr;
     uint16_t * tiles;
-    int32_t playerx;
-    int32_t playery;
+    int32_t road[GameConstants::MapWidth];
 };
 
 class GameScene
@@ -500,16 +499,77 @@ public:
     : sdl(in_sdl), player(in_player)
     {
         map = new MapAsset(sdl,player);
+        createSpirits();
     }
     virtual ~DevScene()
     {
         delete map;
         map = nullptr;
+        deleteSpirits();
+    }
+    void createSpirits()
+    {
+        std::mt19937_64 r(time(0));
+        std::uniform_int_distribution<int32_t> uroad(0,GameConstants::MapWidth-1);
+        // We're going to create 20 spirits randomly,
+        // but we want them to them to be within 20 of the path
+        // 1) Generate a random X
+        // 2) Get That Road's Y
+        // 3) random y between max(0,y-20) min(mapheight,y+20)
+        int32_t x, y;
+        for(int32_t i = 0; i < 20; ++i)
+        {
+            x = uroad(r);
+            y = map->getRoadY(x);
+            std::uniform_int_distribution<int32_t> getNewY(MAX(0,y-20),MIN(GameConstants::MapHeight,y+20));
+            int32_t newY = -1;
+            while(!map->canMove(x,newY))
+            {
+                newY = getNewY(r);
+            }
+            spirits.push_back(new SpiritAsset(sdl));
+            spirits.back()->setGridX(x);
+            spirits.back()->setGridY(newY);
+        }
+    }
+    void deleteSpirits()
+    {
+        for(auto s : spirits)
+        {
+            delete s;
+        }
+        spirits.clear();
+    }
+    void renderSpirits()
+    {
+        int32_t x = 0;
+        int32_t y = 0;
+        for(auto s: spirits)
+        {    
+            map->toScreenCoords(s->getGridX(),s->getGridY(),x,y);
+            s->setX(x); s->setY(y);
+            s->render();
+        }
+    }
+    void detectSpiritCollision()
+    {
+        int32_t playerx = player->getGridX();
+        int32_t playery = player->getGridY();
+        for(std::vector<SpiritAsset*>::iterator it = spirits.begin(); it != spirits.end(); ++it)
+        {
+            if((*it)->getGridX()==playerx && (*it)->getGridY()==playery)
+            {
+                spirits.erase(it);
+                break;
+            }
+        }
     }
     virtual void render()
     {
         map->render();
         player->render();
+
+        renderSpirits();
     }
     virtual bool advance()
     {
@@ -517,40 +577,58 @@ public:
     }
     virtual void keydown(SDL_Keycode keycode)
     {
+        const int32_t playerx = player->getGridX();
+        const int32_t playery = player->getGridY();
         switch (keycode)
         {
         case SDLK_UP:
         {
-            map->moveUp();
+            if(map->canMove(playerx,playery-1))
+            {
+                player->setGridY(playery-1);
+            }
             break;
         }
         case SDLK_DOWN:
         {
-            map->moveDown();
+            if(map->canMove(playerx,playery+1))
+            {
+                player->setGridY(playery+1);
+            }
             break;
         }
         case SDLK_LEFT:
         {
-            map->moveLeft();
+            if(map->canMove(playerx-1,playery))
+            {
+                player->setGridX(playerx-1);
+            }
             break;
         }
         case SDLK_RIGHT:
         {
-            map->moveRight();
+            if(map->canMove(playerx+1,playery))
+            {
+                player->setGridX(playerx+1);
+            }
             break;
         }
         case SDLK_F5:
         {
             delete map;
             map = new MapAsset(sdl,player);
+            deleteSpirits();
+            createSpirits();
             break;
         }
         }
+        detectSpiritCollision();
     }
 private:
     SDLState * sdl;
     PlayerState * player;
     MapAsset * map;
+    std::vector<SpiritAsset *> spirits;
 };
 
 class SplashScene : public GameScene
@@ -870,9 +948,9 @@ public:
         scene_queue.push(new TextCardScene(sdl,GameContent::IntroExposition,DBShift::AlphaFlight));
         scene_queue.push(new TextCardScene(sdl,GameContent::Controls,DBShift::NONE));
         scene_queue.push(new DevScene(sdl,player));
-        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
-        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
-        scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
+        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
+        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
+        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
     }
     ~GameState()
     {
