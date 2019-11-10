@@ -163,8 +163,8 @@ private:
 class AnimatedAsset : public Asset
 {
 public:
-    AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames)
-    : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames)
+    AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0)
+    : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames), frameOffset(in_frameOffset)
     {
         image = IMG_Load(in_filename);
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
@@ -180,7 +180,7 @@ public:
     void render()
     {
         SDL_Rect src;
-        src.x = 16+((SDL_GetTicks()/timePerFrame)%numFrames)*16;
+        src.x = (((SDL_GetTicks()/timePerFrame)%numFrames)+frameOffset)*16;
         src.y = 0;
         src.w = 16;
         src.h = 16;
@@ -201,13 +201,14 @@ private:
     SDL_Texture * texture = nullptr;
     uint32_t timePerFrame = 200;
     uint32_t numFrames = 1;
+    uint32_t frameOffset = 0;
 };
 
 class PlayerState : public AnimatedAsset
 {
 public:
     PlayerState(SDLState * in_sdl)
-    : AnimatedAsset(in_sdl, "assets/hero.png", 250, 4)
+    : AnimatedAsset(in_sdl, "assets/hero.png", 250, 4, 1)
     {
     }
 };
