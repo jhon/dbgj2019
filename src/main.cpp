@@ -460,7 +460,7 @@ public:
     }
     bool canMove(int32_t x, int32_t y)
     {
-        if(x < 0 || y < 0 || x > GameConstants::MapWidth || y > GameConstants::MapHeight)
+        if(x < 0 || y < 0 || x >= GameConstants::MapWidth || y >= GameConstants::MapHeight)
         {
             return false;
         }
@@ -471,7 +471,8 @@ public:
         bool validTile = false;
 
         if((terrain >= Tile::DesertBegin && terrain <= Tile::DesertEnd) ||
-           (terrain >= Tile::RoadDesertBegin && terrain <= Tile::RoadDesertEnd))
+           (terrain >= Tile::RoadDesertBegin && terrain <= Tile::RoadDesertEnd) ||
+           terrain == Tile::DesertStairsDown)
         {
             validTile = true;
         }
