@@ -148,6 +148,12 @@ enum class GameStage : int32_t
     Advance, // Returned from a stage on a success
 };
 
+enum class GamePhase
+{
+    Player,
+    Enemy,
+};
+
 enum class MobType
 {
     None,
@@ -163,6 +169,16 @@ typedef struct SSDLState
     TTF_Font *exposition_font = nullptr;
     bool quit = false;
 } SDLState;
+
+typedef struct GameState
+{
+    GameState(SDLState * in_sdl) : sdl(in_sdl) {}
+    SDLState * sdl;
+    GameStage stage = GameStage::Splash;
+    GamePhase phase = GamePhase::Player;
+} GameState;
+
+GameState * s_state;
 
 class Asset
 {
@@ -1368,7 +1384,6 @@ public:
     GameManager(SDLState * in_sdl)
     : sdl(in_sdl)
     {
-        stage = GameStage::Splash;
         player = new PlayerState(sdl);
         scene = new SplashScene(sdl);
     }
@@ -1388,7 +1403,7 @@ public:
 
         if(nullptr == scene)
         {
-            switch(stage)
+            switch(s_state->stage)
             {
                 case GameStage::Splash:
                     scene = new SplashScene(sdl);
@@ -1437,27 +1452,27 @@ public:
         if(nullptr != scene)
         {
             scene->render();
-            GameStage nextStage = scene->advance(stage);
-            if(nextStage != stage)
+            GameStage nextStage = scene->advance(s_state->stage);
+            if(nextStage != s_state->stage)
             {
                 delete scene;
                 scene = nullptr;
             }
             if(nextStage==GameStage::Advance)
             {
-                stage = (GameStage)((int32_t)(stage)+1);
-                nextStage = stage;
+                s_state->stage = (GameStage)((int32_t)(s_state->stage)+1);
+                nextStage = s_state->stage;
             }
             else
             {
-                stage = nextStage;
+                s_state->stage = nextStage;
             }
             
             if(nextStage==GameStage::Reset)
             {
                 delete player;
                 player = new PlayerState(sdl);
-                stage = GameStage::Title;
+                s_state->stage = GameStage::Title;
             }
         }
 
@@ -1476,10 +1491,9 @@ public:
     SDLState * sdl = nullptr;
 private:
     GameScene * scene = nullptr;
-    GameStage stage;
 };
 
-GameManager * s_state;
+GameManager * s_manager;
 
 #if __EMSCRIPTEN__
 void main_tick() {
@@ -1500,14 +1514,14 @@ int main_tick() {
         }
         case SDL_KEYDOWN:
         {
-            s_state->keydown(event.key.keysym.sym);
+            s_manager->keydown(event.key.keysym.sym);
             break;
         }
         }
 
     }
 
-    s_state->render();
+    s_manager->render();
     SDL_UpdateWindowSurface(s_state->sdl->window);
 
 #if !__EMSCRIPTEN__
@@ -1549,9 +1563,13 @@ int main(int argc, char *argv[])
     sdl->title_font      = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",64);
     sdl->exposition_font = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",32);
 
-    s_state = new GameManager(sdl);
+    s_state = new GameState(sdl);
+    s_manager = new GameManager(sdl);
 
     main_loop();
+
+    delete s_manager;
+    s_manager = nullptr;
 
     delete s_state;
     s_state = nullptr;
