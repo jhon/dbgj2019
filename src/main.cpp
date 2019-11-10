@@ -881,7 +881,7 @@ public:
         }
 
         uint32_t alpha = 0;
-        if(lastTick == 0)
+        if(lastTick == 0 || (lastTick - firstTick)<1000)
         {
             // (0-1000]    Ramp up
             // (1000,] Full on
@@ -894,6 +894,7 @@ public:
             {
                 alpha = 255;
             }
+            lastTick = 0;
         }
         else
         {
@@ -979,7 +980,7 @@ public:
         }
         
         uint32_t alpha = 0;
-        if(lastTick == 0)
+        if(lastTick == 0 || (lastTick - firstTick)<1000)
         {
             // (0-1000]    Ramp up
             // (1000,] Full on
@@ -992,6 +993,7 @@ public:
             {
                 alpha = 255;
             }
+            lastTick = 0;
         }
         else
         {
@@ -1066,7 +1068,7 @@ public:
         }
         
         uint32_t alpha = 0;
-        if(lastTick == 0)
+        if(lastTick == 0 || (lastTick - firstTick)<1000)
         {
             // (0-1000]    Ramp up
             // (1000,] Full on
@@ -1079,6 +1081,7 @@ public:
             {
                 alpha = 255;
             }
+            lastTick = 0;
         }
         else
         {
