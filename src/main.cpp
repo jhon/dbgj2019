@@ -44,6 +44,8 @@ typedef struct SGameContent
     inline static const char * Title = "The Desert Styx";
     inline static const char * Subtitle = "press any key";
     inline static const char * ContinueExposition = "press any key";
+    inline static const char * GameOverText = "Game Over";
+    inline static const char * ScoreText = "Spirits Collected: %i";
     inline static const char * AlphaFlightExposition = "Alpha Flight\n\
 \n\
 For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
@@ -277,6 +279,10 @@ public:
     : AnimatedAsset(in_sdl, "assets/hero.png", 250, 4, 1)
     {
     }
+    void incScore() { score++; }
+    int32_t getScore() { return score; }
+private:
+    int32_t score = 0;
 };
 
 class SpiritAsset : public AnimatedAsset
@@ -613,6 +619,7 @@ public:
             if((*it)->getGridX()==playerx && (*it)->getGridY()==playery)
             {
                 spirits.erase(it);
+                player->incScore();
                 break;
             }
         }
@@ -625,7 +632,7 @@ public:
             delete score;
             score = nullptr;
         }
-        score = new CardAsset(sdl,sdl->exposition_font,"Score: %i/%i",TotalSpirits-spirits.size(),TotalSpirits);
+        score = new CardAsset(sdl,sdl->exposition_font,GameContent::ScoreText,player->getScore());
         score->setX(GameConstants::Margin);
         score->setY(GameConstants::Margin);
     }
@@ -986,6 +993,90 @@ private:
     bool completed;
 };
 
+class EndGameScene : public GameScene
+{
+public:
+    EndGameScene(SDLState * in_sdl, PlayerState * in_player)
+    : sdl(in_sdl), player(in_player), firstTick(0), lastTick(0), completed(false)
+    {
+        gameover = new CardAsset(sdl, sdl->title_font,GameContent::GameOverText);
+        gameover->setX((GameConstants::ScreenWidth - gameover->getWidth())/2);
+        gameover->setY((GameConstants::ScreenHeight - gameover->getHeight())/2);
+
+        score = new CardAsset(sdl, sdl->title_font,GameContent::ScoreText, player->getScore());
+        score->setX((GameConstants::ScreenWidth - score->getWidth())/2);
+        score->setY(gameover->getY() + gameover->getHeight());
+    }
+    virtual ~EndGameScene()
+    {
+        delete gameover;
+        delete score;
+    }
+    virtual void render()
+    {
+        if(firstTick==0)
+        {
+            firstTick = SDL_GetTicks();
+            return;
+        }
+        
+        uint32_t alpha = 0;
+        if(lastTick == 0)
+        {
+            // (0-1000]    Ramp up
+            // (1000,] Full on
+            uint32_t deltaTicks =  SDL_GetTicks() - firstTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)((deltaTicks/1000.f)*255);
+            }
+            else
+            {
+                alpha = 255;
+            }
+        }
+        else
+        {
+            // (0-1000]    Ramp down
+            // (1000,]      We out
+            uint32_t deltaTicks = SDL_GetTicks() - lastTick;
+            if(deltaTicks<1000)
+            {
+                alpha = (uint32_t)(((1000-deltaTicks)/1000.f)*255);
+            }
+            else
+            {
+                completed = true;
+                return;
+            }
+        }
+        
+        gameover->setAlpha(alpha);
+        gameover->render();
+        score->setAlpha(alpha);
+        score->render();
+    }
+    virtual bool advance()
+    {
+        return completed;
+    }
+    virtual void keydown(SDL_Keycode keycode)
+    {
+        if(lastTick == 0)
+        {
+            lastTick = SDL_GetTicks();
+        }
+    }
+private:
+    SDLState * sdl;
+    PlayerState * player;
+    CardAsset * gameover;
+    CardAsset * score;
+    uint32_t firstTick;
+    uint32_t lastTick;
+    bool completed;
+};
+
 class GameState
 {
 public:
@@ -1004,7 +1095,7 @@ public:
         scene_queue.push(new DesertLevel(sdl,player));
         scene_queue.push(new TextCardScene(sdl,GameContent::DawnGuardExposition,DBShift::DawnGuard));
         scene_queue.push(new DesertLevel(sdl,player));
-        //scene_queue.push(new EndGameScene(sdl,player));
+        scene_queue.push(new EndGameScene(sdl,player));
     }
     ~GameState()
     {
