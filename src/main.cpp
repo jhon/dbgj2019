@@ -1362,17 +1362,17 @@ private:
     bool completed;
 };
 
-class GameState
+class GameManager
 {
 public:
-    GameState(SDLState * in_sdl)
+    GameManager(SDLState * in_sdl)
     : sdl(in_sdl)
     {
         stage = GameStage::Splash;
         player = new PlayerState(sdl);
         scene = new SplashScene(sdl);
     }
-    ~GameState()
+    ~GameManager()
     {
         delete player;
         if(nullptr == scene)
@@ -1479,7 +1479,7 @@ private:
     GameStage stage;
 };
 
-GameState * s_state;
+GameManager * s_state;
 
 #if __EMSCRIPTEN__
 void main_tick() {
@@ -1549,7 +1549,7 @@ int main(int argc, char *argv[])
     sdl->title_font      = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",64);
     sdl->exposition_font = TTF_OpenFont("assets/kenney_pixel-webfont.ttf",32);
 
-    s_state = new GameState(sdl);
+    s_state = new GameManager(sdl);
 
     main_loop();
 
