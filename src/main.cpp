@@ -28,6 +28,8 @@
 #define MAX(a,b) ((a) > (b) ? a : b)
 #define MIN(a,b) ((a) < (b) ? a : b)
 
+std::mt19937_64 RandomEngine;
+
 typedef struct SGameConstants
 {
     static const int32_t ScreenWidth = 1280;
@@ -145,6 +147,13 @@ enum class GameStage : int32_t
     Advance, // Returned from a stage on a success
 };
 
+enum class MobType
+{
+    None,
+    Spirit,
+    Scorpion,
+};
+
 typedef struct SSDLState
 {
     SDL_Window *window = nullptr;
@@ -258,6 +267,19 @@ public:
     AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0)
     : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames), frameOffset(in_frameOffset)
     {
+        init(in_filename, in_timePerFrame, in_numFrames, in_frameOffset);
+    }
+    AnimatedAsset(SDLState * in_sdl)
+    : sdl(in_sdl)
+    {
+
+    }
+
+    void init(const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0)
+    {
+        timePerFrame = in_timePerFrame;
+        numFrames = in_numFrames;
+        frameOffset = in_frameOffset;
         image = IMG_Load(in_filename);
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
         _width = GameConstants::GridWidth;
@@ -314,13 +336,25 @@ private:
     int32_t score = 0;
 };
 
-class SpiritAsset : public AnimatedAsset
+class MobAsset : public AnimatedAsset
 {
 public:
-    SpiritAsset(SDLState * in_sdl)
-    : AnimatedAsset(in_sdl, "assets/spirit.png", 200, 4)
+    MobAsset(SDLState * in_sdl, MobType in_type)
+    : AnimatedAsset(in_sdl), mobtype(in_type)
     {
+        switch(mobtype)
+        {
+            case MobType::Spirit:
+                init("assets/spirit.png", 200, 4);
+                break;
+            case MobType::Scorpion:
+                init("assets/scorpion.png", 200, 5);
+                break;
+        }
     }
+    MobType getMobType() { return mobtype; }
+private:
+    MobType mobtype;
 };
 
 class MapAsset : Asset
@@ -378,7 +412,6 @@ public:
     MapAsset(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
-        std::mt19937_64 r(time(0));
         std::uniform_real_distribution<float> u(0,1.f);
         std::uniform_int_distribution<int32_t> terraingen(Tile::DesertBegin,Tile::DesertEnd);
         std::uniform_int_distribution<int32_t> doodadgen(Tile::DesertDoodadBegin,Tile::DesertDoodadEnd);
@@ -386,18 +419,18 @@ public:
         tiles = new uint16_t[GameConstants::MapHeight*GameConstants::MapWidth];
         for(int32_t i=0;i<(GameConstants::MapHeight*GameConstants::MapWidth);++i)
         {
-            float doodadroll = u(r);
+            float doodadroll = u(RandomEngine);
             uint16_t doodad = 0;
             if(doodadroll < 0.1) // 10% chance of doodad
             {
-                doodad = doodadgen(r);
+                doodad = doodadgen(RandomEngine);
             }
             else if(doodadroll < 0.6) // 50% of grass
             {
-                doodad = grassgen(r);
+                doodad = grassgen(RandomEngine);
             }
             // Bottom half is terrain, top half is doodads
-            tiles[i] = (doodad<<8) | (0xff & terraingen(r));
+            tiles[i] = (doodad<<8) | (0xff & terraingen(RandomEngine));
         }
         
         image = IMG_Load("assets/terrain.png");
@@ -413,32 +446,31 @@ public:
     }
     void createPath()
     {
-        std::mt19937_64 r(time(0));
         std::uniform_real_distribution<float> u(0.f,1.f);
         std::uniform_int_distribution<int32_t> uroad(Tile::RoadDesertBegin,Tile::RoadDesertEnd);
 
         int32_t y = GameConstants::MapStartY;
-        float ybias = (u(r)*1.f)-0.5f;
+        float ybias = (u(RandomEngine)*1.f)-0.5f;
         for(int32_t x=GameConstants::MapStartX;x<GameConstants::MapWidth;++x)
         {
             
                    //  Random Component + Center Bias
-            ybias += ((u(r)-0.5f)/2.f) + (((y-50)*-1.f)/500.f);
+            ybias += ((u(RandomEngine)-0.5f)/2.f) + (((y-50)*-1.f)/500.f);
             if(ybias>0.33)
             {
                 ybias = MIN(ybias,1.f);
                 y = MIN(y+1,GameConstants::MapHeight);
-                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(RandomEngine);
             }
             else if (ybias<-0.33)
             {
                 ybias = MAX(ybias,-5.f);
                 y = MAX(y-1,0);
-                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(RandomEngine);
             }
             else
             {
-                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(r);    
+                tiles[(y*GameConstants::MapWidth)+x] = (uint16_t)uroad(RandomEngine);    
             }
             road[x] = y;
         }
@@ -584,20 +616,19 @@ public:
     : sdl(in_sdl), player(in_player)
     {
         map = new MapAsset(sdl,player);
-        createSpirits();
+        createMobs();
         createScoreText();
     }
     virtual ~DesertLevel()
     {
         delete map;
         map = nullptr;
-        deleteSpirits();
+        deleteMobs();
         delete score;
         score = nullptr;
     }
-    void createSpirits()
+    void createMobs()
     {
-        std::mt19937_64 r(time(0));
         std::uniform_int_distribution<int32_t> uroad(0,GameConstants::MapWidth-1);
         // We're going to create TotalSpirits spirits randomly,
         // but we want them to them to be within 20 of the path
@@ -607,52 +638,53 @@ public:
         int32_t x, y;
         for(int32_t i = 0; i < TotalSpirits; ++i)
         {
-            x = uroad(r);
+            x = uroad(RandomEngine);
             y = map->getRoadY(x);
             std::uniform_int_distribution<int32_t> getNewY(MAX(0,y-20),MIN(GameConstants::MapHeight,y+20));
             int32_t newY = -1;
             while(!map->canMove(x,newY))
             {
-                newY = getNewY(r);
+                newY = getNewY(RandomEngine);
             }
-            spirits.push_back(new SpiritAsset(sdl));
-            spirits.back()->setGridX(x);
-            spirits.back()->setGridY(newY);
+            mobs.push_back(new MobAsset(sdl,MobType::Spirit));
+            mobs.back()->setGridX(x);
+            mobs.back()->setGridY(newY);
         }
     }
-    void deleteSpirits()
+    void deleteMobs()
     {
-        for(auto s : spirits)
+        for(auto m : mobs)
         {
-            delete s;
+            delete m;
         }
-        spirits.clear();
+        mobs.clear();
     }
-    void renderSpirits()
+    void renderMobs()
     {
         int32_t x = 0;
         int32_t y = 0;
-        for(auto s: spirits)
+        for(auto m : mobs)
         {    
-            map->toScreenCoords(s->getGridX(),s->getGridY(),x,y);
-            s->setX(x); s->setY(y);
-            s->render();
+            map->toScreenCoords(m->getGridX(),m->getGridY(),x,y);
+            m->setX(x); m->setY(y);
+            m->render();
         }
     }
-    void detectSpiritCollision()
+    MobType detectMobCollision()
     {
         int32_t playerx = player->getGridX();
         int32_t playery = player->getGridY();
-        for(std::vector<SpiritAsset*>::iterator it = spirits.begin(); it != spirits.end(); ++it)
+        MobType result = MobType::None;
+        for(std::vector<MobAsset*>::iterator it = mobs.begin(); it != mobs.end(); ++it)
         {
             if((*it)->getGridX()==playerx && (*it)->getGridY()==playery)
             {
-                spirits.erase(it);
-                player->incScore();
+                result = (*it)->getMobType();
+                mobs.erase(it);
                 break;
             }
         }
-        createScoreText();
+        return result;
     }
     void createScoreText()
     {
@@ -678,7 +710,7 @@ public:
         map->render();
         player->render();
 
-        renderSpirits();
+        renderMobs();
 
         score->render();
     }
@@ -728,16 +760,22 @@ public:
             }
             break;
         }
+#ifndef __EMSCRIPTEN__
         case SDLK_F5:
         {
             delete map;
             map = new MapAsset(sdl,player);
-            deleteSpirits();
-            createSpirits();
+            deleteMobs();
+            createMobs();
             break;
         }
+#endif
         }
-        detectSpiritCollision();
+        if(detectMobCollision() == MobType::Spirit)
+        {
+            player->incScore();
+            createScoreText();
+        }
         uint16_t tile = map->at(player->getGridX(),player->getGridY());
         if (tile == MapAsset::Tile::DesertStairsDown)
         {
@@ -749,7 +787,7 @@ private:
     PlayerState * player = nullptr;
     MapAsset * map = nullptr;
     CardAsset * score = nullptr;
-    std::vector<SpiritAsset *> spirits;
+    std::vector<MobAsset *> mobs;
     bool levelComplete = false;
     bool firstRender = true;
 };
@@ -1292,6 +1330,7 @@ void main_loop()
 
 int main(int argc, char *argv[])
 {
+    RandomEngine.seed(time(0));
     SDL_Init(SDL_INIT_VIDEO);
     IMG_Init(IMG_INIT_PNG);
     TTF_Init();
