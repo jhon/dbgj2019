@@ -44,13 +44,34 @@ typedef struct SGameContent
     inline static const char * Title = "The Desert Styx";
     inline static const char * Subtitle = "press any key";
     inline static const char * ContinueExposition = "press any key";
-    inline static const char * IntroExposition = "Alpha Flight\n\
+    inline static const char * AlphaFlightExposition = "Alpha Flight\n\
 \n\
 For generations, the Ferryman guided the dead across the River Styx, from this world to the next.\n\
 \n\
 As the world grew hotter, the river dried up. The Ferryman traded his transport for something more fitting of the desert: A Bus.\n\
 \n\
 Gather the Souls from the area surrounding The Meadows ((Las Vegas)) and bring them to your bus that you may cross the desert styx to The Base of the Black Hills ((Tucson)).\n\
+\n\
+Good Luck, Busdriver.";
+    inline static const char * NightWatchExposition = "Night Watch\n\
+\n\
+The sun set.\n\
+\n\
+As night fell, those not ready to give up their old lives grew in power.\n\
+\n\
+Good Luck, Busdriver.";
+    inline static const char * ZetaShiftExposition = "Zeta Shift\n\
+\n\
+The dead of night.\n\
+\n\
+The creatures that go bump in the night grow even stronger.\n\
+\n\
+Good Luck, Busdriver.";
+    inline static const char * DawnGuardExposition = "Dawn Guard\n\
+\n\
+The sky begins to glow as the sun threatens to dawn.\n\
+\n\
+The creatures make a last attempt to stop you as you collect spirits.\n\
 \n\
 Good Luck, Busdriver.";
     inline static const char * Controls = "Arrow keys control the character.\n\
@@ -974,12 +995,16 @@ public:
         player = new PlayerState(sdl);
         scene_queue.push(new SplashScene(sdl));
         scene_queue.push(new TitleCardScene(sdl));
-        scene_queue.push(new TextCardScene(sdl,GameContent::IntroExposition,DBShift::AlphaFlight));
+        scene_queue.push(new TextCardScene(sdl,GameContent::AlphaFlightExposition,DBShift::AlphaFlight));
         scene_queue.push(new TextCardScene(sdl,GameContent::Controls,DBShift::NONE));
         scene_queue.push(new DesertLevel(sdl,player));
-        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
-        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
-        //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
+        scene_queue.push(new TextCardScene(sdl,GameContent::NightWatchExposition,DBShift::NightWatch));
+        scene_queue.push(new DesertLevel(sdl,player));
+        scene_queue.push(new TextCardScene(sdl,GameContent::ZetaShiftExposition,DBShift::ZetaShift));
+        scene_queue.push(new DesertLevel(sdl,player));
+        scene_queue.push(new TextCardScene(sdl,GameContent::DawnGuardExposition,DBShift::DawnGuard));
+        scene_queue.push(new DesertLevel(sdl,player));
+        //scene_queue.push(new EndGameScene(sdl,player));
     }
     ~GameState()
     {
