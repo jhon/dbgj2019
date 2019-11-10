@@ -184,6 +184,12 @@ enum class MobType
     Skeleton,
 };
 
+enum class ParticleType
+{
+    None,
+    Slash,
+};
+
 typedef struct SSDLState
 {
     SDL_Window *window = nullptr;
@@ -329,10 +335,10 @@ private:
 class AnimatedAsset : public Asset
 {
 public:
-    AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0)
-    : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames), frameOffset(in_frameOffset)
+    AnimatedAsset(SDLState * in_sdl, const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0, bool in_repeat=true)
+    : sdl(in_sdl), timePerFrame(in_timePerFrame), numFrames(in_numFrames), frameOffset(in_frameOffset), repeat(false)
     {
-        init(in_filename, in_timePerFrame, in_numFrames, in_frameOffset);
+        init(in_filename, in_timePerFrame, in_numFrames, in_frameOffset, in_repeat);
     }
     AnimatedAsset(SDLState * in_sdl)
     : sdl(in_sdl)
@@ -340,15 +346,20 @@ public:
 
     }
 
-    void init(const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0)
+    void init(const char * in_filename, uint32_t in_timePerFrame, uint32_t in_numFrames, uint32_t in_frameOffset=0, bool in_repeat=true)
     {
         timePerFrame = in_timePerFrame;
         numFrames = in_numFrames;
         frameOffset = in_frameOffset;
+        repeat = in_repeat;
         image = IMG_Load(in_filename);
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
         _width = GameConstants::GridWidth;
         _height = GameConstants::GridHeight;
+        if(!repeat)
+        {
+            startTime = SDL_GetTicks();
+        }
     }
     ~AnimatedAsset()
     {
@@ -359,12 +370,27 @@ public:
     void render()
     {
         if(_x > GameConstants::ScreenWidth || _x < 0 - GameConstants::GridWidth ||
-           _y > GameConstants::ScreenHeight || _y < 0 - GameConstants::GridHeight)
+           _y > GameConstants::ScreenHeight || _y < 0 - GameConstants::GridHeight ||
+           completed)
         {
             return;
         }
         SDL_Rect src;
-        src.x = (((SDL_GetTicks()/timePerFrame)%numFrames)+frameOffset)*16;
+        if(repeat)
+        {
+            src.x = (((SDL_GetTicks()/timePerFrame)%numFrames)+frameOffset)*16;
+        }
+        else
+        {
+            uint32_t frame = (SDL_GetTicks()-startTime)/timePerFrame;
+            if(frame > numFrames)
+            {
+                completed = true;
+                return;
+            }
+            src.x = (frame+frameOffset)*16;
+        }
+        
         src.y = 0;
         src.w = 16;
         src.h = 16;
@@ -379,6 +405,7 @@ public:
         //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
         //SDL_RenderDrawRect(sdl->renderer, &dst);
     }
+    bool isComplete() { return completed; }
 private:
     SDLState * sdl = nullptr;
     SDL_Surface * image = nullptr;
@@ -386,6 +413,9 @@ private:
     uint32_t timePerFrame = 200;
     uint32_t numFrames = 1;
     uint32_t frameOffset = 0;
+    uint32_t startTime = 0;
+    bool repeat = false;
+    bool completed = false;
 };
 
 class PlayerState : public AnimatedAsset
@@ -425,6 +455,24 @@ public:
     MobType getMobType() { return mobtype; }
 private:
     MobType mobtype;
+};
+
+class ParticleAsset : public AnimatedAsset
+{
+public:
+    ParticleAsset(SDLState * in_sdl, ParticleType in_type)
+    : AnimatedAsset(in_sdl), particletype(in_type)
+    {
+        switch(particletype)
+        {
+            case ParticleType::Slash:
+                init("assets/slash.png", 50, 7, 0, false);
+                break;
+        }
+    }
+    ParticleType getParticleType() { return particletype; }
+private:
+    ParticleType particletype;
 };
 
 class MapAsset : Asset
@@ -973,6 +1021,28 @@ public:
         score->setX(GameConstants::Margin);
         score->setY(GameConstants::Margin);
     }
+    void renderParticles()
+    {
+        int32_t x = 0;
+        int32_t y = 0;
+        std::vector<ParticleAsset*>::iterator to_delete = particles.end();
+        for(std::vector<ParticleAsset*>::iterator it = particles.begin(); it != particles.end(); ++it)
+        {
+            if((*it)->isComplete())
+            {
+                to_delete = it;
+            }
+
+            map->toScreenCoords((*it)->getGridLerpX(),(*it)->getGridLerpY(),x,y);
+            (*it)->setX(x); (*it)->setY(y);
+            (*it)->render();
+        }
+
+        if(to_delete != particles.end())
+        {
+            particles.erase(to_delete);
+        }
+    }
     virtual void render()
     {
         if(firstRender)
@@ -1023,6 +1093,7 @@ public:
         player->render();
 
         renderMobs();
+        renderParticles();
 
         score->render();
     }
@@ -1099,6 +1170,11 @@ public:
         }
         else if(collision != MobType::None)
         {
+            // Create a sword swipe at the target location
+            particles.push_back(new ParticleAsset(sdl, ParticleType::Slash));
+            particles.back()->setGridX(playerx);
+            particles.back()->setGridY(playery);
+
             playerx = (int32_t) player->getGridX();
             playery = (int32_t) player->getGridY();
         }
@@ -1115,6 +1191,7 @@ private:
     MapAsset * map = nullptr;
     CardAsset * score = nullptr;
     std::vector<MobAsset *> mobs;
+    std::vector<ParticleAsset *> particles;
     bool levelComplete = false;
     bool gameOver = false;
     bool firstRender = true;
