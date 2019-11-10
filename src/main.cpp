@@ -27,6 +27,9 @@ typedef struct SGameConstants
     static const int32_t MapWidth = 128;
     static const int32_t MapHeight = 128;
 
+    static const int32_t MapStartX = 0;
+    static const int32_t MapStartY = 50;
+
     // Derived Constants
     static const int32_t NumTilesWide = (ScreenWidth/GridWidth)+2;
     static const int32_t NumTilesHigh = (ScreenHeight/GridHeight)+2;
@@ -344,12 +347,7 @@ public:
         image = IMG_Load("assets/terrain.png");
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
 
-        player->setGridX(0);
-        player->setGridY(50);
         createPath();
-
-        player->setX((GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2));
-        player->setY((GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2));
     }
     ~MapAsset()
     {
@@ -363,9 +361,9 @@ public:
         std::uniform_real_distribution<float> u(0.f,1.f);
         std::uniform_int_distribution<int32_t> uroad(Tile::RoadDesertBegin,Tile::RoadDesertEnd);
 
-        int32_t y = player->getGridY();
+        int32_t y = GameConstants::MapStartY;
         float ybias = (u(r)*1.f)-0.5f;
-        for(int32_t x=player->getGridX();x<GameConstants::MapWidth;++x)
+        for(int32_t x=GameConstants::MapStartX;x<GameConstants::MapWidth;++x)
         {
             
                    //  Random Component + Center Bias
@@ -612,6 +610,14 @@ public:
     }
     virtual void render()
     {
+        if(firstRender)
+        {
+            player->setGridX(GameConstants::MapStartX);
+            player->setGridY(GameConstants::MapStartY);
+            player->setX((GameConstants::ScreenWidth/2)-(GameConstants::GridWidth/2));
+            player->setY((GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2));
+            firstRender = false;
+        }
         map->render();
         player->render();
 
@@ -621,7 +627,7 @@ public:
     }
     virtual bool advance()
     {
-        return false;
+        return levelComplete;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
@@ -671,6 +677,11 @@ public:
         }
         }
         detectSpiritCollision();
+        uint16_t tile = map->at(player->getGridX(),player->getGridY());
+        if (tile == MapAsset::Tile::DesertStairsDown)
+        {
+            levelComplete = true;
+        }
     }
 private:
     SDLState * sdl = nullptr;
@@ -678,6 +689,8 @@ private:
     MapAsset * map = nullptr;
     CardAsset * score = nullptr;
     std::vector<SpiritAsset *> spirits;
+    bool levelComplete = false;
+    bool firstRender = true;
 };
 
 class SplashScene : public GameScene
