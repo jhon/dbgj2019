@@ -351,6 +351,8 @@ public:
             case MobType::Scorpion:
                 init("assets/scorpion.png", 200, 5);
                 break;
+            case MobType::None:
+                break;
         }
     }
     MobType getMobType() { return mobtype; }
