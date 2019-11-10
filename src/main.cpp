@@ -100,7 +100,8 @@ If an enemy moves into your square, you die.\n\
 CAVEATS:\n\
 - Game is very in progress\n\
 - The first level does not end.\n\
-- If you die, you need to restart the game\n\
+- The interaction between player/enemy turn isn't obvious\n\
+- There are no particles or sounds at the moment\n\
 \n\
 CREDITS:\n\
 Code: Jhon Adams (Tracteur Blinde)\n\
@@ -702,17 +703,162 @@ public:
     {
         return __findMobAtLocation(x,y)!=mobs.end();
     }
-    MobType detectMobCollision()
+    MobType detectMobCollision(int32_t x, int32_t y)
     {
         MobType result = MobType::None;
 
-        std::vector<MobAsset*>::iterator it = __findMobAtLocation(player->getGridX(), player->getGridY());
+        std::vector<MobAsset*>::iterator it = __findMobAtLocation(x,y);
         if(it!=mobs.end())
         {
                 result = (*it)->getMobType();
                 mobs.erase(it);
         }
         return result;
+    }
+    bool isMobAt(int32_t x, int32_t y)
+    {
+        for(auto m : mobs)
+        {
+            if(m->getGridX()==x && m->getGridY()==y)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    void moveMobs()
+    {
+        // Ignore a real pathfinding for now. Try to move one closer to the protagonist if you're on screen
+        for(auto m : mobs)
+        {
+            // Off screen or a spirit
+            if(m->getMobType()==MobType::Spirit ||
+               m->getX()<0 || m->getX()>GameConstants::ScreenWidth ||
+               m->getY()<0 || m->getY()>GameConstants::ScreenHeight)
+            {
+                continue;
+            }
+
+            // Do we need to move more X or more Y
+            int32_t x = m->getGridX();
+            int32_t y = m->getGridY();
+            int32_t dx = player->getGridX() - x;
+            int32_t dy = player->getGridY() - y;
+            if(abs(dx)>abs(dy) && map->canMove(x+(dx/abs(dx)),y))
+            {
+                if(dx!=0)
+                {
+                    x += dx/abs(dx);
+                }
+            }
+            else
+            {
+                if(dy!=0)
+                {
+                    y += dy/abs(dy);
+                }
+            }
+
+            if(map->canMove(x,y) && !isMobAt(x,y))
+            {
+                m->setGridX(x);
+                m->setGridY(y);
+
+                // If the player is here... they lose
+                if(player->getGridX()==x && player->getGridY()==y)
+                {
+                    gameOver = true;
+                }
+            }
+        }
+#if 0
+        // Create a grid representing the screen
+        //  We're then going to calculate dijkstra across it
+        //  (The default values we should be less than a thousand grid elements)
+        int8_t djGrid[GameConstants::NumTilesHigh*GameConstants::NumTilesWide];
+        for(int32_t i=0;i<GameConstants::NumTilesHigh*GameConstants::NumTilesWide;++i)
+        {
+            djGrid[i] = -1;
+        }
+        auto g2dj = [](int32_t x, int32_t y){return (GameConstants::NumTilesWide*y)+x;};
+        djGrid[(GameConstants::NumTilesHigh2*GameConstants::NumTilesWide) + GameConstants::NumTilesWide2] = 0;
+        std::queue<int16_t> unvisited;
+        unvisited.push((GameConstants::NumTilesWide2 << 8) | GameConstants::NumTilesHigh2);
+        while(!unvisited.empty())
+        {
+            int32_t i = unvisited.front();
+            unvisited.pop();
+
+            int32_t x = (i >> 8) & 0xff;
+            int32_t y = i & 0xff;
+
+            if(x < 0 || x > GameConstants::NumTilesWide ||
+               y < 0 || y > GameConstants::NumTilesHigh)
+            {
+                return;
+            }
+
+            // This lambda looks at the tile.
+            //  If it's unwalkable, just trash it
+            //  if it's walkable, set its value to min(cv,ourvalue+1);
+            // If it has a value that's 's been visited and is > ourvalue+1, add it to the unvisited list
+            auto searchTile = [&djGrid,&unvisited,this](int32_t screenx, int32_t screeny, int32_t playerx, int32_t playery, int32_t newValue)
+            {
+                // This x/y is in screen space, translate to world space
+                int32_t worldx = screenx+playerx-GameConstants::NumTilesWide2;
+                int32_t worldy = screeny+playery-GameConstants::NumTilesHigh2;
+                
+                // If this is outside the map, feel sad :(
+                if(worldx < 0 || worldx > GameConstants::MapWidth ||
+                worldy < 0 || worldy > GameConstants::MapHeight)
+                {
+                    return;
+                }
+
+                // See if the tile is walkable
+                if(!map->canMove(worldx, worldy))
+                {
+                    return;
+                }
+            
+                int32_t cv = djGrid[(GameConstants::NumTilesWide*screeny)+screenx];
+                if(cv==-1)
+                {
+                    cv = newValue;
+                    unvisited.push((int16_t)((screenx << 8) | screeny));
+                }
+                djGrid[(GameConstants::NumTilesWide*screeny)+screenx] = MIN(cv,newValue);
+            };
+
+            // Look up, down, left, right
+            int32_t value = djGrid[(GameConstants::NumTilesWide*y)+x]+1;
+            int32_t playerx = player->getGridX();
+            int32_t playery = player->getGridY();
+            searchTile(x,y-1,playerx,playery,value);
+            searchTile(x,y+1,playerx,playery,value);
+            searchTile(x+1,y,playerx,playery,value);
+            searchTile(x-1,y,playerx,playery,value);
+        }
+
+        // For debug::: Render some color
+        for(int32_t y=0;y<GameConstants::NumTilesHigh;++y)
+        {
+            for(int32_t x=0;x<GameConstants::NumTilesWide;++x)
+            {
+                SDL_Rect dst;
+                dst.x = GameConstants::TopLeftX + (x*GameConstants::GridWidth);
+                dst.y = GameConstants::TopLeftY + (y*GameConstants::GridHeight);
+                dst.w = GameConstants::GridWidth;
+                dst.h = GameConstants::GridHeight;
+
+                uint8_t red = djGrid[(y*GameConstants::NumTilesWide)+x] / (GameConstants::NumTilesWide2+GameConstants::NumTilesHigh2);
+        
+                SDL_SetRenderDrawColor(sdl->renderer, red, 0x00, 0x00, 0x00);
+                SDL_RenderDrawRect(sdl->renderer, &dst);
+            }
+        }
+#endif
+
     }
     void createScoreText()
     {
@@ -740,6 +886,8 @@ public:
 
         renderMobs();
 
+        //moveMobs();
+
         score->render();
     }
     virtual GameStage advance(GameStage currentStage)
@@ -748,19 +896,23 @@ public:
         {
             return GameStage::Advance;
         }
+        if(gameOver)
+        {
+            return GameStage::GameOver;
+        }
         return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
-        const int32_t playerx = player->getGridX();
-        const int32_t playery = player->getGridY();
+        int32_t playerx = player->getGridX();
+        int32_t playery = player->getGridY();
         switch (keycode)
         {
         case SDLK_UP:
         {
             if(map->canMove(playerx,playery-1))
             {
-                player->setGridY(playery-1);
+                playery--;
             }
             break;
         }
@@ -768,7 +920,7 @@ public:
         {
             if(map->canMove(playerx,playery+1))
             {
-                player->setGridY(playery+1);
+                playery++;
             }
             break;
         }
@@ -776,7 +928,7 @@ public:
         {
             if(map->canMove(playerx-1,playery))
             {
-                player->setGridX(playerx-1);
+                playerx--;
             }
             break;
         }
@@ -784,7 +936,7 @@ public:
         {
             if(map->canMove(playerx+1,playery))
             {
-                player->setGridX(playerx+1);
+                playerx++;
             }
             break;
         }
@@ -799,16 +951,28 @@ public:
         }
 #endif
         }
-        if(detectMobCollision() == MobType::Spirit)
+        MobType collision = detectMobCollision(playerx,playery);
+        if(collision == MobType::Spirit)
         {
             player->incScore();
             createScoreText();
         }
+        else if(collision != MobType::None)
+        {
+            playerx = player->getGridX();
+            playery = player->getGridY();
+        }
+
+        player->setGridX(playerx);
+        player->setGridY(playery);
+        
         uint16_t tile = map->at(player->getGridX(),player->getGridY());
         if (tile == MapAsset::Tile::DesertStairsDown)
         {
             levelComplete = true;
         }
+
+        moveMobs();
     }
 private:
     SDLState * sdl = nullptr;
@@ -817,6 +981,7 @@ private:
     CardAsset * score = nullptr;
     std::vector<MobAsset *> mobs;
     bool levelComplete = false;
+    bool gameOver = false;
     bool firstRender = true;
 };
 
@@ -1281,6 +1446,11 @@ public:
                 stage = (GameStage)((int32_t)(stage)+1);
                 nextStage = stage;
             }
+            else
+            {
+                stage = nextStage;
+            }
+            
             if(nextStage==GameStage::Reset)
             {
                 delete player;
