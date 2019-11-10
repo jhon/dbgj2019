@@ -74,6 +74,7 @@
                 "skeleton.png",
                 "slash.png",
                 "consume.png",
+                "warp.png",
                 "kenney_pixel-webfont.ttf"
             ],
             "group": "build",

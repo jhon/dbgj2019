@@ -189,6 +189,7 @@ enum class ParticleType
     None,
     Slash,
     Consume,
+    Warp,
 };
 
 typedef struct SSDLState
@@ -471,6 +472,10 @@ public:
                 break;
             case ParticleType::Consume:
                 init("assets/consume.png", 50, 13, 0, false);
+                break;
+            case ParticleType::Warp:
+                init("assets/warp.png", 50, 9, 0, false);
+                break;
         }
     }
     ParticleType getParticleType() { return particletype; }
@@ -1192,6 +1197,14 @@ public:
 
         s_state->phase = GamePhase::Player;
         s_state->phaseChange = SDL_GetTicks();
+
+        int16_t tile = map->at(playerx,playery);
+        if (tile == MapAsset::Tile::DesertStairsDown)
+        {
+            particles.push_back(new ParticleAsset(sdl, ParticleType::Warp));
+            particles.back()->setGridX(playerx);
+            particles.back()->setGridY(playery-4);
+        }
     }
 private:
     SDLState * sdl = nullptr;
