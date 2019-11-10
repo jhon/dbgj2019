@@ -116,6 +116,24 @@ enum class DBShift
     NONE
 };
 
+enum class GameStage : int32_t
+{
+    Splash,
+    Title,
+    Controls,
+    AlphaFlightExposition,
+    LevelOne,
+    NightWatchExposition,
+    LevelTwo,
+    ZetaShiftExposition,
+    LevelThree,
+    DawnGuardExposition,
+    LevelFour,
+    GameOver, // Returned from a stage on a failure
+    Reset,   
+    Advance, // Returned from a stage on a success
+};
+
 typedef struct SSDLState
 {
     SDL_Window *window = nullptr;
@@ -543,7 +561,7 @@ class GameScene
 public:
     virtual ~GameScene() {};
     virtual void render() = 0;
-    virtual bool advance() = 0;
+    virtual GameStage advance(GameStage currentStage) = 0;
     virtual void keydown(SDL_Keycode keycode) = 0;
 };
 
@@ -653,9 +671,13 @@ public:
 
         score->render();
     }
-    virtual bool advance()
+    virtual GameStage advance(GameStage currentStage)
     {
-        return levelComplete;
+        if(levelComplete)
+        {
+            return GameStage::Advance;
+        }
+        return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
@@ -771,9 +793,13 @@ public:
         logo->setAlpha(alpha);
         logo->render();
     }
-    virtual bool advance()
+    virtual GameStage advance(GameStage currentStage)
     {
-        return completed;
+        if(completed)
+        {
+            return GameStage::Advance;
+        }
+        return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode) {}
 private:
@@ -886,9 +912,13 @@ public:
         continueAsset->setAlpha(alpha);
         continueAsset->render();
     }
-    virtual bool advance()
+    virtual GameStage advance(GameStage currentStage)
     {
-        return completed;
+        if(completed)
+        {
+            return GameStage::Advance;
+        }
+        return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
@@ -973,9 +1003,13 @@ public:
         subtitle->setAlpha(alpha);
         subtitle->render();
     }
-    virtual bool advance()
+    virtual GameStage advance(GameStage currentStage)
     {
-        return completed;
+        if(completed)
+        {
+            return GameStage::Advance;
+        }
+        return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
@@ -1056,9 +1090,13 @@ public:
         score->setAlpha(alpha);
         score->render();
     }
-    virtual bool advance()
+    virtual GameStage advance(GameStage currentStage)
     {
-        return completed;
+        if(completed)
+        {
+            return GameStage::Advance;
+        }
+        return currentStage;
     }
     virtual void keydown(SDL_Keycode keycode)
     {
@@ -1083,27 +1121,16 @@ public:
     GameState(SDLState * in_sdl)
     : sdl(in_sdl)
     {
+        stage = GameStage::Splash;
         player = new PlayerState(sdl);
-        scene_queue.push(new SplashScene(sdl));
-        scene_queue.push(new TitleCardScene(sdl));
-        scene_queue.push(new TextCardScene(sdl,GameContent::AlphaFlightExposition,DBShift::AlphaFlight));
-        scene_queue.push(new TextCardScene(sdl,GameContent::Controls,DBShift::NONE));
-        scene_queue.push(new DesertLevel(sdl,player));
-        scene_queue.push(new TextCardScene(sdl,GameContent::NightWatchExposition,DBShift::NightWatch));
-        scene_queue.push(new DesertLevel(sdl,player));
-        scene_queue.push(new TextCardScene(sdl,GameContent::ZetaShiftExposition,DBShift::ZetaShift));
-        scene_queue.push(new DesertLevel(sdl,player));
-        scene_queue.push(new TextCardScene(sdl,GameContent::DawnGuardExposition,DBShift::DawnGuard));
-        scene_queue.push(new DesertLevel(sdl,player));
-        scene_queue.push(new EndGameScene(sdl,player));
+        scene = new SplashScene(sdl);
     }
     ~GameState()
     {
         delete player;
-        while(!scene_queue.empty())
+        if(nullptr == scene)
         {
-            delete scene_queue.front();
-            scene_queue.pop();
+            delete scene;
         }
     }
 
@@ -1112,13 +1139,68 @@ public:
         SDL_SetRenderDrawColor( sdl->renderer, 0x00, 0x00, 0x00, 0xFF );
         SDL_RenderClear(sdl->renderer);
 
-        if(!scene_queue.empty())
+        if(nullptr == scene)
         {
-            scene_queue.front()->render();
-            if(scene_queue.front()->advance())
+            switch(stage)
             {
-                delete scene_queue.front();
-                scene_queue.pop();
+                case GameStage::Splash:
+                    scene = new SplashScene(sdl);
+                    break;
+                case GameStage::Title:
+                    scene = new TitleCardScene(sdl);
+                    break;
+                case GameStage::Controls:
+                    scene = new TextCardScene(sdl,GameContent::Controls,DBShift::NONE);
+                    break;
+                case GameStage::AlphaFlightExposition:
+                    scene = new TextCardScene(sdl,GameContent::AlphaFlightExposition,DBShift::AlphaFlight);
+                    break;
+                case GameStage::NightWatchExposition:
+                    scene = new TextCardScene(sdl,GameContent::NightWatchExposition,DBShift::NightWatch);
+                    break;
+                case GameStage::ZetaShiftExposition:
+                    scene = new TextCardScene(sdl,GameContent::ZetaShiftExposition,DBShift::ZetaShift);
+                    break;
+                case GameStage::DawnGuardExposition:
+                    scene = new TextCardScene(sdl,GameContent::DawnGuardExposition,DBShift::DawnGuard);
+                    break;
+                case GameStage::LevelOne:
+                    scene = new DesertLevel(sdl,player); 
+                    break;
+                case GameStage::LevelFour:
+                    scene = new DesertLevel(sdl,player);
+                    break;
+                case GameStage::LevelTwo:
+                    scene = new DesertLevel(sdl,player);
+                    break;
+                case GameStage::LevelThree:
+                    scene = new DesertLevel(sdl,player);
+                    break;
+                case GameStage::GameOver:
+                    scene = new EndGameScene(sdl,player);
+                    break;
+            }
+        }
+
+        if(nullptr != scene)
+        {
+            scene->render();
+            GameStage nextStage = scene->advance(stage);
+            if(nextStage != stage)
+            {
+                delete scene;
+                scene = nullptr;
+            }
+            if(nextStage==GameStage::Advance)
+            {
+                stage = (GameStage)((int32_t)(stage)+1);
+                nextStage = stage;
+            }
+            if(nextStage==GameStage::Reset)
+            {
+                delete player;
+                player = new PlayerState(sdl);
+                stage = GameStage::Title;
             }
         }
 
@@ -1127,16 +1209,17 @@ public:
 
     void keydown(SDL_Keycode keycode)
     {
-        if(!scene_queue.empty())
+        if(nullptr != scene)
         {
-            scene_queue.front()->keydown(keycode);
+            scene->keydown(keycode);
         }
     }
 
     PlayerState * player = nullptr;
     SDLState * sdl = nullptr;
 private:
-    std::queue<GameScene *> scene_queue;
+    GameScene * scene = nullptr;
+    GameStage stage;
 };
 
 GameState * s_state;
