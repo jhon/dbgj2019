@@ -179,6 +179,7 @@ enum class MobType
     None,
     Spirit,
     Scorpion,
+    Skeleton,
 };
 
 typedef struct SSDLState
@@ -411,6 +412,9 @@ public:
                 break;
             case MobType::Scorpion:
                 init("assets/scorpion.png", 200, 5);
+                break;
+            case MobType::Skeleton:
+                init("assets/skeleton.png", 200, 6);
                 break;
             case MobType::None:
                 break;
@@ -729,6 +733,20 @@ public:
             mobs.back()->setGridX(x);
             mobs.back()->setGridY(y);
         }
+
+        for(int32_t i = 0; i < settings.numSkeletons; ++i)
+        {
+            x = -1;
+            y = -1;
+            while(!map->canMove(x,y) && !isMobAtLocation(x,y))
+            {
+                x = ux(RandomEngine);
+                y = uy(RandomEngine);
+            }
+            mobs.push_back(new MobAsset(sdl,MobType::Skeleton));
+            mobs.back()->setGridX(x);
+            mobs.back()->setGridY(y);
+        }
     }
     void deleteMobs()
     {
@@ -772,8 +790,16 @@ public:
         std::vector<MobAsset*>::iterator it = __findMobAtLocation(x,y);
         if(it!=mobs.end())
         {
-                result = (*it)->getMobType();
-                mobs.erase(it);
+            result = (*it)->getMobType();
+            mobs.erase(it);
+
+            // Skeletons result in a spirit spawning
+            if(result==MobType::Skeleton)
+            {
+                mobs.push_back(new MobAsset(sdl,MobType::Spirit));
+                mobs.back()->setGridX(x);
+                mobs.back()->setGridY(y);
+            }
         }
         return result;
     }
@@ -958,12 +984,19 @@ public:
 
         if(SDL_GetTicks()-s_state->phaseChange>200)
         {
+            uint16_t tile;
             switch(s_state->phase)
             {
                 case GamePhase::Player:
                     // Make sure the player mob's grid coordinates are updated
                     player->setGridX(player->getTargetGridX());
                     player->setGridY(player->getTargetGridY());
+
+                    tile = map->at((int32_t)player->getGridX(),(int32_t)player->getGridY());
+                    if (tile == MapAsset::Tile::DesertStairsDown)
+                    {
+                        levelComplete = true;
+                    }
 
                     s_state->phase = GamePhase::Enemy;
                     s_state->phaseChange = SDL_GetTicks();
@@ -1073,12 +1106,6 @@ public:
 
         s_state->phase = GamePhase::Player;
         s_state->phaseChange = SDL_GetTicks();
-        
-        uint16_t tile = map->at((int32_t)player->getGridX(),(int32_t)player->getGridY());
-        if (tile == MapAsset::Tile::DesertStairsDown)
-        {
-            levelComplete = true;
-        }
     }
 private:
     SDLState * sdl = nullptr;
