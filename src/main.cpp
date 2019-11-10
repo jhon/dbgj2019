@@ -2,6 +2,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <cinttypes>
+#include <cstdarg>
 #include <queue>
 #include <random>
 
@@ -135,10 +136,25 @@ public:
         image = IMG_Load(in_filename);
         stageTwo();
     }
-    CardAsset(SDLState * in_sdl, TTF_Font * in_font, const char * in_text)
+    CardAsset(SDLState * in_sdl, TTF_Font * in_font, const char * in_format, ...)
     : sdl(in_sdl)
     {
-        image = TTF_RenderText_Blended(in_font,in_text,SDL_Color{0xff,0xff,0xff,0xff});
+        char buffer[4096];
+        size_t buffer_size = _countof(buffer);
+
+        va_list va_args;
+        va_start(va_args, in_format);
+        int len = vsprintf_s(buffer, buffer_size, in_format, va_args);
+        va_end(va_args);
+
+        // Ensure the text terminates
+        if (len + 1 >= 4096)
+        {
+            len = 4095;
+        }
+        buffer[len + 1] = '\0';
+        
+        image = TTF_RenderText_Blended(in_font,buffer,SDL_Color{0xff,0xff,0xff,0xff});
         stageTwo();
     }
     void stageTwo()
@@ -503,29 +519,33 @@ public:
 class DesertLevel : public GameScene
 {
 public:
+    static const uint32_t TotalSpirits = 20;
     DesertLevel(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
         map = new MapAsset(sdl,player);
         createSpirits();
+        createScoreText();
     }
     virtual ~DesertLevel()
     {
         delete map;
         map = nullptr;
         deleteSpirits();
+        delete score;
+        score = nullptr;
     }
     void createSpirits()
     {
         std::mt19937_64 r(time(0));
         std::uniform_int_distribution<int32_t> uroad(0,GameConstants::MapWidth-1);
-        // We're going to create 20 spirits randomly,
+        // We're going to create TotalSpirits spirits randomly,
         // but we want them to them to be within 20 of the path
         // 1) Generate a random X
         // 2) Get That Road's Y
         // 3) random y between max(0,y-20) min(mapheight,y+20)
         int32_t x, y;
-        for(int32_t i = 0; i < 20; ++i)
+        for(int32_t i = 0; i < TotalSpirits; ++i)
         {
             x = uroad(r);
             y = map->getRoadY(x);
@@ -571,6 +591,18 @@ public:
                 break;
             }
         }
+        createScoreText();
+    }
+    void createScoreText()
+    {
+        if(score)
+        {
+            delete score;
+            score = nullptr;
+        }
+        score = new CardAsset(sdl,sdl->exposition_font,"Score: %i/%i",TotalSpirits-spirits.size(),TotalSpirits);
+        score->setX(GameConstants::Margin);
+        score->setY(GameConstants::Margin);
     }
     virtual void render()
     {
@@ -578,6 +610,8 @@ public:
         player->render();
 
         renderSpirits();
+
+        score->render();
     }
     virtual bool advance()
     {
@@ -633,9 +667,10 @@ public:
         detectSpiritCollision();
     }
 private:
-    SDLState * sdl;
-    PlayerState * player;
-    MapAsset * map;
+    SDLState * sdl = nullptr;
+    PlayerState * player = nullptr;
+    MapAsset * map = nullptr;
+    CardAsset * score = nullptr;
     std::vector<SpiritAsset *> spirits;
 };
 
