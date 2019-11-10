@@ -188,6 +188,7 @@ enum class ParticleType
 {
     None,
     Slash,
+    Consume,
 };
 
 typedef struct SSDLState
@@ -355,7 +356,7 @@ public:
         image = IMG_Load(in_filename);
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
         _width = GameConstants::GridWidth;
-        _height = GameConstants::GridHeight;
+        _height = (image->h/16) * GameConstants::GridHeight;
         if(!repeat)
         {
             startTime = SDL_GetTicks();
@@ -393,7 +394,7 @@ public:
         
         src.y = 0;
         src.w = 16;
-        src.h = 16;
+        src.h = image->h;
 
         SDL_Rect dst;
         dst.x = _x;
@@ -468,6 +469,8 @@ public:
             case ParticleType::Slash:
                 init("assets/slash.png", 50, 7, 0, false);
                 break;
+            case ParticleType::Consume:
+                init("assets/consume.png", 50, 13, 0, false);
         }
     }
     ParticleType getParticleType() { return particletype; }
@@ -1167,6 +1170,11 @@ public:
         {
             player->incScore();
             createScoreText();
+
+            // Create a sword consume animation at the target location
+            particles.push_back(new ParticleAsset(sdl, ParticleType::Consume));
+            particles.back()->setGridX(playerx);
+            particles.back()->setGridY(playery-2);
         }
         else if(collision != MobType::None)
         {
