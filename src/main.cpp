@@ -121,7 +121,7 @@ protected:
     int32_t _y = 0;
     int32_t _width = 0;
     int32_t _height = 0;
-    int32_t _alpha = 0;
+    int32_t _alpha = 0xff;
     int32_t _grid_x = 0;
     int32_t _grid_y = 0;
 };
@@ -130,11 +130,19 @@ class CardAsset : public Asset
 {
 public:
     CardAsset(SDLState * in_sdl, const char * in_filename)
-    : sdl(in_sdl),
-    image(nullptr),
-    texture(nullptr)
+    : sdl(in_sdl)
     {
         image = IMG_Load(in_filename);
+        stageTwo();
+    }
+    CardAsset(SDLState * in_sdl, TTF_Font * in_font, const char * in_text)
+    : sdl(in_sdl)
+    {
+        image = TTF_RenderText_Blended(in_font,in_text,SDL_Color{0xff,0xff,0xff,0xff});
+        stageTwo();
+    }
+    void stageTwo()
+    {
         texture = SDL_CreateTextureFromSurface(sdl->renderer, image);
         _width = image->w;
         _height = image->h;
@@ -146,8 +154,8 @@ public:
     }
     void render()
     {
-        if(_x > GameConstants::ScreenWidth || _x < 0 - GameConstants::GridWidth ||
-           _y > GameConstants::ScreenHeight || _y < 0 - GameConstants::GridHeight)
+        if(_x > GameConstants::ScreenWidth || _x < 0 - _width ||
+           _y > GameConstants::ScreenHeight || _y < 0 - _height)
         {
             return;
         }
@@ -210,8 +218,8 @@ public:
         dst.h = _height;
         
         SDL_RenderCopy(sdl->renderer, texture, &src, &dst);
-        SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
-        SDL_RenderDrawRect(sdl->renderer, &dst);
+        //SDL_SetRenderDrawColor(sdl->renderer, 0xff, 0xff, 0x00, 0x00);
+        //SDL_RenderDrawRect(sdl->renderer, &dst);
     }
 private:
     SDLState * sdl = nullptr;
@@ -708,15 +716,9 @@ public:
         text_source.h = text_dest.h = text_surface->h;
         text_texture = SDL_CreateTextureFromSurface(sdl->renderer, text_surface);
 
-        continue_source.x = 0;
-        continue_source.y = 0;
-        TTF_SizeText(sdl->exposition_font,GameContent::ContinueExposition,&continue_source.w,&continue_source.h);
-        continue_dest.x = GameConstants::ScreenWidth - continue_source.w - GameConstants::Margin;
-        continue_dest.y = GameConstants::ScreenHeight - continue_source.h - GameConstants::Margin;
-        continue_dest.w = continue_source.w;
-        continue_dest.h = continue_source.h;
-        continue_surface = TTF_RenderText_Blended(sdl->exposition_font,GameContent::ContinueExposition,SDL_Color{0xff,0xff,0xff,0xff});
-        continue_texture = SDL_CreateTextureFromSurface(sdl->renderer, continue_surface);
+        continueAsset = new CardAsset(sdl,sdl->exposition_font,GameContent::ContinueExposition);
+        continueAsset->setX(GameConstants::ScreenWidth - continueAsset->getWidth() - GameConstants::Margin);
+        continueAsset->setY(GameConstants::ScreenHeight - continueAsset->getHeight() - GameConstants::Margin);
 
         switch(in_shift)
         {
@@ -749,8 +751,7 @@ public:
     {
         SDL_DestroyTexture(text_texture);
         SDL_FreeSurface(text_surface);
-        SDL_DestroyTexture(continue_texture);
-        SDL_FreeSurface(continue_surface);
+        delete continueAsset;
     }
     virtual void render()
     {
@@ -800,8 +801,8 @@ public:
         SDL_SetTextureAlphaMod(text_texture, alpha);
         SDL_RenderCopy(sdl->renderer, text_texture, &text_source, &text_dest);
 
-        SDL_SetTextureAlphaMod(continue_texture, alpha);
-        SDL_RenderCopy(sdl->renderer, continue_texture, &continue_source, &continue_dest);
+        continueAsset->setAlpha(alpha);
+        continueAsset->render();
     }
     virtual bool advance()
     {
@@ -821,10 +822,7 @@ private:
     SDL_Texture * text_texture;
     SDL_Rect text_source;
     SDL_Rect text_dest;
-    SDL_Surface * continue_surface;
-    SDL_Texture * continue_texture;
-    SDL_Rect continue_source;
-    SDL_Rect continue_dest;
+    CardAsset * continueAsset;
     uint32_t firstTick;
     uint32_t lastTick;
     bool completed;
@@ -836,33 +834,18 @@ public:
     TitleCardScene(SDLState * in_sdl)
     : sdl(in_sdl), firstTick(0), lastTick(0), completed(false)
     {
-        title_source.x = 0;
-        title_source.y = 0;
-        TTF_SizeText(sdl->title_font,GameContent::Title,&title_source.w,&title_source.h);
-        title_dest.x = (GameConstants::ScreenWidth - title_source.w)/2;
-        title_dest.y = (GameConstants::ScreenHeight - title_source.h)/2;
-        title_dest.w = title_source.w;
-        title_dest.h = title_source.h;
-        title_surface = TTF_RenderText_Blended(sdl->title_font,GameContent::Title,SDL_Color{0xff,0xff,0xff,0xff});
-        title_texture = SDL_CreateTextureFromSurface(sdl->renderer, title_surface);
+        title = new CardAsset(sdl, sdl->title_font,GameContent::Title);
+        title->setX((GameConstants::ScreenWidth - title->getWidth())/2);
+        title->setY((GameConstants::ScreenHeight - title->getHeight())/2);
 
-        subtitle_source.x = 0;
-        subtitle_source.y = 0;
-        TTF_SizeText(sdl->exposition_font,GameContent::Subtitle,&subtitle_source.w,&subtitle_source.h);
-        subtitle_dest.x = (GameConstants::ScreenWidth - subtitle_source.w)/2;
-        subtitle_dest.y = title_dest.y + title_dest.h;
-        subtitle_dest.w = subtitle_source.w;
-        subtitle_dest.h = subtitle_source.h;
-        subtitle_surface = TTF_RenderText_Blended(sdl->exposition_font,GameContent::Subtitle,SDL_Color{0xff,0xff,0xff,0xff});
-        subtitle_texture = SDL_CreateTextureFromSurface(sdl->renderer, subtitle_surface);
+        subtitle = new CardAsset(sdl, sdl->exposition_font,GameContent::Subtitle);
+        subtitle->setX((GameConstants::ScreenWidth - subtitle->getWidth())/2);
+        subtitle->setY(title->getY() + title->getHeight());
     }
     virtual ~TitleCardScene()
     {
-        SDL_DestroyTexture(title_texture);
-        SDL_FreeSurface(title_surface);
-
-        SDL_DestroyTexture(subtitle_texture);
-        SDL_FreeSurface(subtitle_surface);
+        delete subtitle;
+        delete title;
     }
     virtual void render()
     {
@@ -903,12 +886,10 @@ public:
             }
         }
         
-
-        SDL_SetTextureAlphaMod(title_texture, alpha);
-        SDL_RenderCopy(sdl->renderer, title_texture, &title_source, &title_dest);
-
-        SDL_SetTextureAlphaMod(subtitle_texture, alpha);
-        SDL_RenderCopy(sdl->renderer, subtitle_texture, &subtitle_source, &subtitle_dest);
+        title->setAlpha(alpha);
+        title->render();
+        subtitle->setAlpha(alpha);
+        subtitle->render();
     }
     virtual bool advance()
     {
@@ -923,14 +904,8 @@ public:
     }
 private:
     SDLState * sdl;
-    SDL_Surface * title_surface;
-    SDL_Texture * title_texture;
-    SDL_Rect title_source;
-    SDL_Rect title_dest;
-    SDL_Surface * subtitle_surface;
-    SDL_Texture * subtitle_texture;
-    SDL_Rect subtitle_source;
-    SDL_Rect subtitle_dest;
+    CardAsset * title;
+    CardAsset * subtitle;
     uint32_t firstTick;
     uint32_t lastTick;
     bool completed;
