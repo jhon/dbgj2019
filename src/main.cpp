@@ -121,6 +121,7 @@ Max score is 150.\
 \n\
 \n\
 CAVEATS:\n\
+- Enemy pathfinding is almost non-functional\n\
 - There are no sounds\n\
 \n\
 CREDITS:\n\
