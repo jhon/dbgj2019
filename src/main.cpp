@@ -117,10 +117,11 @@ Enemies move the turn after you.\n\
 If you move into an enemy's square, the enemy dies.\n\
 If an enemy moves into your square, you die.\n\
 \n\
+Max score is 150.\
+\n\
 \n\
 CAVEATS:\n\
-- Game is very in progress\n\
-- There are no particles or sounds at the moment\n\
+- There are no sounds\n\
 \n\
 CREDITS:\n\
 Code: Jhon Adams (Tracteur Blinde)\n\
