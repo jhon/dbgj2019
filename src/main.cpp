@@ -46,7 +46,7 @@ For generations, the Ferryman guided the dead across the River Styx, from this w
 \n\
 As the world grew hotter, the river dried up. The Ferryman traded his transport for something more fitting of the desert: A Bus.\n\
 \n\
-Gather the Souls from the area surrounding The Meadows ((Las Vegas)) and bring them to your bus. Take the bus to The Base of the Black Hills ((Tucson)).\n\
+Gather the Souls from the area surrounding The Meadows ((Las Vegas)) and bring them to your bus that you may cross the desert styx to The Base of the Black Hills ((Tucson)).\n\
 \n\
 Good Luck, Busdriver.";
     inline static const char * Controls = "Arrow keys control the character.\n\
