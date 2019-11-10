@@ -500,16 +500,16 @@ public:
     virtual void keydown(SDL_Keycode keycode) = 0;
 };
 
-class DevScene : public GameScene
+class DesertLevel : public GameScene
 {
 public:
-    DevScene(SDLState * in_sdl, PlayerState * in_player)
+    DesertLevel(SDLState * in_sdl, PlayerState * in_player)
     : sdl(in_sdl), player(in_player)
     {
         map = new MapAsset(sdl,player);
         createSpirits();
     }
-    virtual ~DevScene()
+    virtual ~DesertLevel()
     {
         delete map;
         map = nullptr;
@@ -922,7 +922,7 @@ public:
         scene_queue.push(new TitleCardScene(sdl));
         scene_queue.push(new TextCardScene(sdl,GameContent::IntroExposition,DBShift::AlphaFlight));
         scene_queue.push(new TextCardScene(sdl,GameContent::Controls,DBShift::NONE));
-        scene_queue.push(new DevScene(sdl,player));
+        scene_queue.push(new DesertLevel(sdl,player));
         //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::NightWatch));
         //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::ZetaShift));
         //scene_queue.push(new TextCardScene(sdl,GameContent::LoremIpsum,DBShift::DawnGuard));
