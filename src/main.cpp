@@ -106,8 +106,6 @@ If an enemy moves into your square, you die.\n\
 \n\
 CAVEATS:\n\
 - Game is very in progress\n\
-- The first level does not end.\n\
-- The interaction between player/enemy turn isn't obvious\n\
 - There are no particles or sounds at the moment\n\
 \n\
 CREDITS:\n\
@@ -197,34 +195,20 @@ public:
     void setX(int32_t x) { _x = x; };
     void setY(int32_t y) { _y = y; };
 
-    int32_t getGridX() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x; return _grid_x; };
-    int32_t getGridY() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y; return _grid_y; };
+    int32_t getGridX() { return _grid_x; };
+    int32_t getGridY() { return _grid_y; };
     void setGridX(int32_t x) { _target_grid_x = _grid_x = x; };
     void setGridY(int32_t y) { _target_grid_y = _grid_y = y; };
 
-    float getGridLerpX() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x; return gridlerp(_grid_x,_target_grid_x); }
-    float getGridLerpY() { if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y; return gridlerp(_grid_y, _target_grid_y); }
+    float getGridLerpX() { return gridlerp(_grid_x,_target_grid_x); }
+    float getGridLerpY() { return gridlerp(_grid_y, _target_grid_y); }
     float getGridOffsetX()
     {
-        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x;
         return gridlerp(0, _target_grid_x - _grid_x);
     }
     float getGridOffsetY()
     {
-        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y;
         return gridlerp(0, _target_grid_y - _grid_y);
-    }
-    float getGridInvOffsetX()
-    {
-        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_x = _target_grid_x;
-        if(_grid_x == _target_grid_x) return 0;
-        return 1.f - gridlerp(0, _target_grid_x - _grid_x);
-    }
-    float getGridInvOffsetY()
-    {
-        if(SDL_GetTicks()-s_state->phaseChange>200) _grid_y = _target_grid_y;
-        if(_grid_y == _target_grid_y) return 0;
-        return 1.f - gridlerp(0, _target_grid_y - _grid_y);
     }
 
     int32_t getTargetGridX() { return _target_grid_x; };
@@ -828,12 +812,6 @@ public:
             {
                 m->setTargetGridX(x);
                 m->setTargetGridY(y);
-
-                // If the player is here... they lose
-                if(player->getGridX()==x && player->getGridY()==y)
-                {
-                    gameOver = true;
-                }
             }
         }
 #if 0
@@ -923,7 +901,22 @@ public:
             }
         }
 #endif
+    }
+    void finalizeMobMovement()
+    {
+        for(auto m : mobs)
+        {
+            int32_t x = m->getTargetGridX();
+            int32_t y = m->getTargetGridY();
+            m->setGridX(x);
+            m->setGridY(y);
 
+            // If the player is here... they lose
+            if(player->getGridX()==x && player->getGridY()==y)
+            {
+                gameOver = true;
+            }
+        }
     }
     void createScoreText()
     {
@@ -946,12 +939,35 @@ public:
             player->setY((GameConstants::ScreenHeight/2)-(GameConstants::GridHeight/2));
             firstRender = false;
         }
+
+        if(SDL_GetTicks()-s_state->phaseChange>200)
+        {
+            switch(s_state->phase)
+            {
+                case GamePhase::Player:
+                    // Make sure the player mob's grid coordinates are updated
+                    player->setGridX(player->getTargetGridX());
+                    player->setGridY(player->getTargetGridY());
+
+                    s_state->phase = GamePhase::Enemy;
+                    s_state->phaseChange = SDL_GetTicks();
+
+                    moveMobs();
+                    break;
+                case GamePhase::Enemy:
+                    finalizeMobMovement();
+                    s_state->phase = GamePhase::Input;
+                    s_state->phaseChange = SDL_GetTicks();
+                    break;
+                case GamePhase::Input:
+                    break;
+            }
+        }
+
         map->render();
         player->render();
 
         renderMobs();
-
-        //moveMobs();
 
         score->render();
     }
@@ -969,6 +985,10 @@ public:
     }
     virtual void keydown(SDL_Keycode keycode)
     {
+        if(s_state->phase != GamePhase::Input)
+        {
+            return;
+        }
         int32_t playerx = (int32_t) player->getGridX();
         int32_t playery = (int32_t) player->getGridY();
         switch (keycode)
@@ -1039,8 +1059,6 @@ public:
         {
             levelComplete = true;
         }
-
-        //moveMobs();
     }
 private:
     SDLState * sdl = nullptr;
