@@ -788,8 +788,9 @@ public:
         }
         return false;
     }
-    void moveMobs()
+    bool moveMobs()
     {
+        bool result = false;
         // Ignore a real pathfinding for now. Try to move one closer to the protagonist if you're on screen
         for(auto m : mobs)
         {
@@ -825,8 +826,10 @@ public:
             {
                 m->setTargetGridX(x);
                 m->setTargetGridY(y);
+                result = true;
             }
         }
+        return result;
 #if 0
         // Create a grid representing the screen
         //  We're then going to calculate dijkstra across it
@@ -965,7 +968,11 @@ public:
                     s_state->phase = GamePhase::Enemy;
                     s_state->phaseChange = SDL_GetTicks();
 
-                    moveMobs();
+                    if(!moveMobs())
+                    {
+                        // If no mobs moved, skip the enemy phase
+                        s_state->phase = GamePhase::Input;
+                    }
                     break;
                 case GamePhase::Enemy:
                     finalizeMobMovement();
