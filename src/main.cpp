@@ -476,6 +476,8 @@ public:
             case ParticleType::Warp:
                 init("assets/warp.png", 50, 9, 0, false);
                 break;
+            case ParticleType::None:
+                break;
         }
     }
     ParticleType getParticleType() { return particletype; }
@@ -865,7 +867,7 @@ public:
     {
         for(auto m : mobs)
         {
-            if(m->getGridX()==x && m->getGridY()==y)
+            if(m->getTargetGridX()==x && m->getTargetGridY()==y)
             {
                 return true;
             }
@@ -874,47 +876,6 @@ public:
     }
     bool moveMobs()
     {
-        bool result = false;
-        // Ignore a real pathfinding for now. Try to move one closer to the protagonist if you're on screen
-        for(auto m : mobs)
-        {
-            // Off screen or a spirit
-            if(m->getMobType()==MobType::Spirit ||
-               m->getX()<0 || m->getX()>GameConstants::ScreenWidth ||
-               m->getY()<0 || m->getY()>GameConstants::ScreenHeight)
-            {
-                continue;
-            }
-
-            // Do we need to move more X or more Y
-            int32_t x = (int32_t)(m->getGridX());
-            int32_t y = (int32_t)(m->getGridY());
-            int32_t dx = (int32_t)(player->getGridX() - x);
-            int32_t dy = (int32_t)(player->getGridY() - y);
-            if(abs(dx)>abs(dy) && map->canMove(x+(dx/abs(dx)),y))
-            {
-                if(dx!=0)
-                {
-                    x += dx/abs(dx);
-                }
-            }
-            else
-            {
-                if(dy!=0)
-                {
-                    y += dy/abs(dy);
-                }
-            }
-
-            if(map->canMove(x,y) && !isMobAt(x,y))
-            {
-                m->setTargetGridX(x);
-                m->setTargetGridY(y);
-                result = true;
-            }
-        }
-        return result;
-#if 0
         // Create a grid representing the screen
         //  We're then going to calculate dijkstra across it
         //  (The default values we should be less than a thousand grid elements)
@@ -923,7 +884,6 @@ public:
         {
             djGrid[i] = -1;
         }
-        auto g2dj = [](int32_t x, int32_t y){return (GameConstants::NumTilesWide*y)+x;};
         djGrid[(GameConstants::NumTilesHigh2*GameConstants::NumTilesWide) + GameConstants::NumTilesWide2] = 0;
         std::queue<int16_t> unvisited;
         unvisited.push((GameConstants::NumTilesWide2 << 8) | GameConstants::NumTilesHigh2);
@@ -938,7 +898,7 @@ public:
             if(x < 0 || x > GameConstants::NumTilesWide ||
                y < 0 || y > GameConstants::NumTilesHigh)
             {
-                return;
+                break;
             }
 
             // This lambda looks at the tile.
@@ -964,7 +924,12 @@ public:
                     return;
                 }
             
-                int32_t cv = djGrid[(GameConstants::NumTilesWide*screeny)+screenx];
+                uint32_t i = (GameConstants::NumTilesWide*screeny)+screenx;
+                if(i>=GameConstants::NumTilesHigh*GameConstants::NumTilesWide)
+                {
+                    return;
+                }
+                int32_t cv = djGrid[i];
                 if(cv==-1)
                 {
                     cv = newValue;
@@ -983,24 +948,88 @@ public:
             searchTile(x-1,y,playerx,playery,value);
         }
 
-        // For debug::: Render some color
+        // This code is useful for displaying the dijkstra grid
+#if 0
         for(int32_t y=0;y<GameConstants::NumTilesHigh;++y)
         {
             for(int32_t x=0;x<GameConstants::NumTilesWide;++x)
             {
-                SDL_Rect dst;
-                dst.x = GameConstants::TopLeftX + (x*GameConstants::GridWidth);
-                dst.y = GameConstants::TopLeftY + (y*GameConstants::GridHeight);
-                dst.w = GameConstants::GridWidth;
-                dst.h = GameConstants::GridHeight;
+                int32_t centerx = GameConstants::TopLeftX + (x*GameConstants::GridWidth) + (GameConstants::GridWidth/2);
+                int32_t centery = GameConstants::TopLeftY + (y*GameConstants::GridHeight) + (GameConstants::GridHeight/2);
 
-                uint8_t red = djGrid[(y*GameConstants::NumTilesWide)+x] / (GameConstants::NumTilesWide2+GameConstants::NumTilesHigh2);
-        
-                SDL_SetRenderDrawColor(sdl->renderer, red, 0x00, 0x00, 0x00);
-                SDL_RenderDrawRect(sdl->renderer, &dst);
+                uint8_t value = djGrid[(y*GameConstants::NumTilesWide)+x];
+
+                CardAsset * c = new CardAsset(sdl, sdl->exposition_font, "%x", value);
+                c->setX(centerx-(c->getWidth()/2));
+                c->setY(centery-(c->getHeight()/2));
+                c->render();
+                delete c;
+                //SDL_SetRenderDrawColor(sdl->renderer, red, 0x00, 0x00, 0x00);
+                //SDL_RenderDrawRect(sdl->renderer, &dst);
             }
         }
 #endif
+        bool result = false;
+        // Ignore a real pathfinding for now. Try to move one closer to the protagonist if you're on screen
+        for(auto m : mobs)
+        {
+            // Off screen or a spirit
+            int32_t x = m->getX();
+            int32_t y = m->getY();
+            if(m->getMobType()==MobType::Spirit ||
+               x<0 || x>GameConstants::ScreenWidth ||
+               y<0 || y>GameConstants::ScreenHeight)
+            {
+                continue;
+            }
+
+            int32_t worldx = m->getGridX();
+            int32_t worldy = m->getGridY();
+
+            // Determine the screen coordinates
+            int32_t screenx = worldx - (player->getGridX()-GameConstants::NumTilesWide2);
+            int32_t screeny = worldy - (player->getGridY()-GameConstants::NumTilesHigh2);
+
+            auto getValue = [&djGrid](int32_t x, int32_t y)
+            {
+                if((y*GameConstants::NumTilesWide)+x >= GameConstants::NumTilesWide*GameConstants::NumTilesHigh)
+                {
+                    return (int8_t)255;
+                }
+                return djGrid[(y*GameConstants::NumTilesWide)+x];
+            };
+
+            uint8_t n = getValue(screenx,screeny-1);
+            uint8_t s = getValue(screenx,screeny+1);
+            uint8_t e = getValue(screenx-1,screeny);
+            uint8_t w = getValue(screenx+1,screeny);
+            
+            int32_t dx = 0, dy = 0;
+            if(n <= s && n <= e && n <= w && map->canMove(worldx,worldy-1) && !isMobAt(worldx,worldy-1))
+            {
+                dy = -1;
+            }
+            else if(s <= n && s <= e && s <= w && map->canMove(worldx,worldy+1) && !isMobAt(worldx,worldy+1))
+            {
+                dy = 1;
+            }
+            else if (e <= n && e <= s && e <= w && map->canMove(worldx-1,worldy) && !isMobAt(worldx-1,worldy))
+            {
+                dx = -1;
+            }
+            else if(w <= n && w <= s && w <= e && map->canMove(worldx+1,worldy) && !isMobAt(worldx+1,worldy))
+            {
+                dx = 1;
+            }
+
+            if(dx != 0 || dy != 0)
+            {
+                m->setTargetGridX(worldx+dx);
+                m->setTargetGridY(worldy+dy);
+                result = true;
+            }
+        }
+        return result;
     }
     void finalizeMobMovement()
     {
