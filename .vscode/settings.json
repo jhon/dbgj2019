@@ -27,5 +27,6 @@
         "xstring": "cpp",
         "xtr1common": "cpp",
         "xutility": "cpp"
-    }
+    },
+    "terminal.integrated.shell.windows": "C:\\Windows\\System32\\cmd.exe"
 }
